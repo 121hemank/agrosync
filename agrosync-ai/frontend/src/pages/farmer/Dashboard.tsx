@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Sprout, Package, TrendingUp, DollarSign, Star, CloudSun, ShoppingBag, BarChart3 } from 'lucide-react';
+import { Sprout, Package, TrendingUp, DollarSign, Calendar, CloudSun, ShoppingBag, BarChart3, Wallet, TrendingDown } from 'lucide-react';
 import { analytics, weather } from '../../services/api';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) {
@@ -70,8 +70,10 @@ export default function FarmerDashboard() {
             {[
               { icon: Sprout, label: 'Add Farm', color: 'bg-green-500', path: '/farmer/farms' },
               { icon: CloudSun, label: 'Check Weather', color: 'bg-blue-500', path: '/farmer/weather' },
-              { icon: ShoppingBag, label: 'Marketplace', color: 'bg-purple-500', path: '/farmer/marketplace' },
-              { icon: BarChart3, label: 'Analytics', color: 'bg-amber-500', path: '/farmer/analytics' }
+              { icon: Calendar, label: 'Crop Calendar', color: 'bg-indigo-500', path: '/farmer/calendar' },
+              { icon: Wallet, label: 'Track Expenses', color: 'bg-red-500', path: '/farmer/expenses' },
+              { icon: TrendingDown, label: 'Market Prices', color: 'bg-amber-500', path: '/farmer/prices' },
+              { icon: ShoppingBag, label: 'Marketplace', color: 'bg-purple-500', path: '/farmer/marketplace' }
             ].map((item, i) => (
               <a key={i} href={item.path}
                 className="flex flex-col items-center gap-2 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">

@@ -14,6 +14,9 @@ const notificationRoutes = require('./routes/notifications');
 const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
 const cropRoutes = require('./routes/crops');
+const calendarRoutes = require('./routes/calendar');
+const expenseRoutes = require('./routes/expenses');
+const marketPriceRoutes = require('./routes/marketprices');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +38,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/crops', cropRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/market-prices', marketPriceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

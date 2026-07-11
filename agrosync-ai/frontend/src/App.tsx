@@ -9,7 +9,9 @@ import FarmerDashboard from './pages/farmer/Dashboard';
 import FarmManagement from './pages/farmer/FarmManagement';
 import Weather from './pages/farmer/Weather';
 import CropPlanner from './pages/farmer/CropPlanner';
-import AIRecommendations from './pages/farmer/AIRecommendations';
+import CropCalendar from './pages/farmer/CropCalendar';
+import Expenses from './pages/farmer/Expenses';
+import MarketPrices from './pages/farmer/MarketPrices';
 import FarmerMarketplace from './pages/farmer/Marketplace';
 import FarmerOrders from './pages/farmer/Orders';
 import Revenue from './pages/farmer/Revenue';
@@ -50,7 +52,9 @@ export default function App() {
         <Route path="/farmer/farms" element={<ProtectedRoute roles={['farmer']}><FarmManagement /></ProtectedRoute>} />
         <Route path="/farmer/weather" element={<ProtectedRoute roles={['farmer']}><Weather /></ProtectedRoute>} />
         <Route path="/farmer/crop-planner" element={<ProtectedRoute roles={['farmer']}><CropPlanner /></ProtectedRoute>} />
-        <Route path="/farmer/recommendations" element={<ProtectedRoute roles={['farmer']}><AIRecommendations /></ProtectedRoute>} />
+        <Route path="/farmer/calendar" element={<ProtectedRoute roles={['farmer']}><CropCalendar /></ProtectedRoute>} />
+        <Route path="/farmer/expenses" element={<ProtectedRoute roles={['farmer']}><Expenses /></ProtectedRoute>} />
+        <Route path="/farmer/prices" element={<ProtectedRoute roles={['farmer']}><MarketPrices /></ProtectedRoute>} />
         <Route path="/farmer/marketplace" element={<ProtectedRoute roles={['farmer']}><FarmerMarketplace /></ProtectedRoute>} />
         <Route path="/farmer/orders" element={<ProtectedRoute roles={['farmer']}><FarmerOrders /></ProtectedRoute>} />
         <Route path="/farmer/revenue" element={<ProtectedRoute roles={['farmer']}><Revenue /></ProtectedRoute>} />

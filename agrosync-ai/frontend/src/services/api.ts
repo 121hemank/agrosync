@@ -120,6 +120,38 @@ export const cropsAPI = {
   getAll: () => api.get('/crops')
 };
 
+export const calendar = {
+  getAll: (params?: any) => api.get('/calendar', { params }),
+  getUpcoming: () => api.get('/calendar/upcoming'),
+  get: (id: string) => api.get(`/calendar/${id}`),
+  create: (data: any) => api.post('/calendar', data),
+  update: (id: string, data: any) => api.put(`/calendar/${id}`, data),
+  delete: (id: string) => api.delete(`/calendar/${id}`),
+  complete: (id: string) => api.patch(`/calendar/${id}/complete`),
+  getAlerts: () => api.get('/calendar/alerts/weather'),
+  markAlertRead: (id: string) => api.patch(`/calendar/alerts/${id}/read`),
+  generateAlerts: (farm_id: string) => api.post('/calendar/alerts/generate', { farm_id })
+};
+
+export const expenses = {
+  getAll: (params?: any) => api.get('/expenses', { params }),
+  get: (id: string) => api.get(`/expenses/${id}`),
+  create: (data: any) => api.post('/expenses', data),
+  update: (id: string, data: any) => api.put(`/expenses/${id}`, data),
+  delete: (id: string) => api.delete(`/expenses/${id}`),
+  categorySummary: (params?: any) => api.get('/expenses/summary/by-category', { params }),
+  monthlySummary: (params?: any) => api.get('/expenses/summary/monthly', { params }),
+  profitability: (params?: any) => api.get('/expenses/summary/profitability', { params })
+};
+
+export const marketPrices = {
+  getAll: (params?: any) => api.get('/market-prices', { params }),
+  getCrops: () => api.get('/market-prices/crops'),
+  getHistory: (cropName: string) => api.get(`/market-prices/history/${encodeURIComponent(cropName)}`),
+  getSummary: () => api.get('/market-prices/summary'),
+  refresh: () => api.post('/market-prices/refresh')
+};
+
 export const profile = {
   get: () => api.get('/profile'),
   update: (data: FormData) => api.put('/profile', data, { headers: { 'Content-Type': 'multipart/form-data' } }),

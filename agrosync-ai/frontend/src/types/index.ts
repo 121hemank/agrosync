@@ -148,3 +148,67 @@ export interface AnalyticsData {
   totalSpent?: number;
   completedOrders?: number;
 }
+
+export interface CalendarEvent {
+  id: string;
+  farm_id: string;
+  user_id: string;
+  crop_name: string;
+  event_type: 'planting' | 'fertilizing' | 'irrigation' | 'pest_control' | 'harvesting' | 'other';
+  event_date: string;
+  end_date?: string;
+  notes?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'completed' | 'skipped';
+  weather_alert: boolean;
+  alert_message?: string;
+  created_at: string;
+}
+
+export interface FarmExpense {
+  id: string;
+  farm_id: string;
+  user_id: string;
+  expense_category: 'seeds' | 'fertilizer' | 'pesticide' | 'labor' | 'irrigation' | 'equipment' | 'transport' | 'other';
+  description: string;
+  amount: number;
+  expense_date: string;
+  crop_id?: string;
+  quantity?: number;
+  unit?: string;
+  receipt_url?: string;
+  crops?: Crop;
+  created_at: string;
+}
+
+export interface MarketPrice {
+  id: string;
+  crop_name: string;
+  market_name: string;
+  state?: string;
+  price_per_quintal: number;
+  min_price?: number;
+  max_price?: number;
+  modal_price?: number;
+  price_date: string;
+  unit: string;
+  source: string;
+  created_at: string;
+}
+
+export interface WeatherAlert {
+  id: string;
+  farm_id: string;
+  user_id: string;
+  alert_type: 'frost' | 'heatwave' | 'heavy_rain' | 'drought' | 'storm' | 'hailstorm' | 'general';
+  severity: 'low' | 'moderate' | 'high' | 'critical';
+  title: string;
+  message: string;
+  temperature?: number;
+  humidity?: number;
+  rainfall_mm?: number;
+  wind_speed?: number;
+  alert_date: string;
+  is_read: boolean;
+  created_at: string;
+}

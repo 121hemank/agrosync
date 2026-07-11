@@ -206,6 +206,73 @@ CREATE TABLE otps (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Crop calendar events
+CREATE TABLE crop_calendar_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  farm_id UUID REFERENCES farms(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  crop_name VARCHAR(255) NOT NULL,
+  event_type VARCHAR(50) NOT NULL CHECK (event_type IN ('planting', 'fertilizing', 'irrigation', 'pest_control', 'harvesting', 'other')),
+  event_date DATE NOT NULL,
+  end_date DATE,
+  notes TEXT,
+  priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'skipped')),
+  weather_alert BOOLEAN DEFAULT false,
+  alert_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Farm expenses
+CREATE TABLE farm_expenses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  farm_id UUID REFERENCES farms(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  expense_category VARCHAR(50) NOT NULL CHECK (expense_category IN ('seeds', 'fertilizer', 'pesticide', 'labor', 'irrigation', 'equipment', 'transport', 'other')),
+  description TEXT NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  expense_date DATE NOT NULL,
+  crop_id UUID REFERENCES crops(id),
+  quantity DECIMAL(10, 2),
+  unit VARCHAR(50),
+  receipt_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Market prices
+CREATE TABLE market_prices (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  crop_name VARCHAR(255) NOT NULL,
+  market_name VARCHAR(255) NOT NULL,
+  state VARCHAR(100),
+  price_per_quintal DECIMAL(10, 2) NOT NULL,
+  min_price DECIMAL(10, 2),
+  max_price DECIMAL(10, 2),
+  modal_price DECIMAL(10, 2),
+  price_date DATE NOT NULL,
+  unit VARCHAR(50) DEFAULT 'quintal',
+  source VARCHAR(255) DEFAULT 'manual',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Weather alerts
+CREATE TABLE weather_alerts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  farm_id UUID REFERENCES farms(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  alert_type VARCHAR(50) NOT NULL CHECK (alert_type IN ('frost', 'heatwave', 'heavy_rain', 'drought', 'storm', 'hailstorm', 'general')),
+  severity VARCHAR(20) DEFAULT 'moderate' CHECK (severity IN ('low', 'moderate', 'high', 'critical')),
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  temperature DECIMAL(5, 2),
+  humidity DECIMAL(5, 2),
+  rainfall_mm DECIMAL(7, 2),
+  wind_speed DECIMAL(5, 2),
+  alert_date TIMESTAMPTZ DEFAULT NOW(),
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
@@ -220,3 +287,14 @@ CREATE INDEX idx_reviews_product ON reviews(product_id);
 CREATE INDEX idx_weather_farm ON weather_history(farm_id);
 CREATE INDEX idx_user_crops_farm ON user_crops(farm_id);
 CREATE INDEX idx_otps_email ON otps(email);
+CREATE INDEX idx_calendar_farm ON crop_calendar_events(farm_id);
+CREATE INDEX idx_calendar_date ON crop_calendar_events(event_date);
+CREATE INDEX idx_calendar_user ON crop_calendar_events(user_id);
+CREATE INDEX idx_expenses_farm ON farm_expenses(farm_id);
+CREATE INDEX idx_expenses_user ON farm_expenses(user_id);
+CREATE INDEX idx_expenses_date ON farm_expenses(expense_date);
+CREATE INDEX idx_market_prices_crop ON market_prices(crop_name);
+CREATE INDEX idx_market_prices_date ON market_prices(price_date);
+CREATE INDEX idx_weather_alerts_farm ON weather_alerts(farm_id);
+CREATE INDEX idx_weather_alerts_user ON weather_alerts(user_id);
+CREATE INDEX idx_weather_alerts_unread ON weather_alerts(user_id, is_read);

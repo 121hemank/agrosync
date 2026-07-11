@@ -4,8 +4,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import {
   LayoutDashboard, Sprout, CloudSun, ShoppingBag, Package,
   BarChart3, Bell, FileText, User, LogOut, Menu, X,
-  ChevronDown, Settings, ClipboardList, TrendingUp, Star,
-  ShieldCheck
+  ChevronDown, Settings, ClipboardList, TrendingUp, Calendar,
+  DollarSign, TrendingDown, ShieldCheck
 } from 'lucide-react';
 import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -16,7 +16,9 @@ const farmerLinks = [
   { to: '/farmer/farms', icon: Sprout, label: 'Farms' },
   { to: '/farmer/weather', icon: CloudSun, label: 'Weather' },
   { to: '/farmer/crop-planner', icon: ClipboardList, label: 'Crop Planner' },
-  { to: '/farmer/recommendations', icon: Star, label: 'AI Recommendations' },
+  { to: '/farmer/calendar', icon: Calendar, label: 'Crop Calendar' },
+  { to: '/farmer/expenses', icon: DollarSign, label: 'Expenses' },
+  { to: '/farmer/prices', icon: TrendingDown, label: 'Market Prices' },
   { to: '/farmer/marketplace', icon: ShoppingBag, label: 'Marketplace' },
   { to: '/farmer/orders', icon: Package, label: 'Orders' },
   { to: '/farmer/revenue', icon: TrendingUp, label: 'Revenue' },
@@ -27,8 +29,7 @@ const farmerLinks = [
 const buyerLinks = [
   { to: '/buyer/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/buyer/marketplace', icon: ShoppingBag, label: 'Marketplace' },
-  { to: '/buyer/orders', icon: Package, label: 'Orders' },
-  { to: '/buyer/wishlist', icon: Star, label: 'Wishlist' }
+  { to: '/buyer/orders', icon: Package, label: 'Orders' }
 ];
 
 const adminLinks = [
