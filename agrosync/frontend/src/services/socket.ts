@@ -4,7 +4,8 @@ let socket: Socket | null = null;
 
 export function connectSocket(token: string): Socket {
   if (socket?.connected) return socket;
-  socket = io({
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || undefined;
+  socket = io(backendUrl, {
     auth: { token },
     transports: ['websocket', 'polling']
   });
