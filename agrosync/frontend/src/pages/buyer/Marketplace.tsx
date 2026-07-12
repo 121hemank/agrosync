@@ -28,7 +28,7 @@ export default function BuyerMarketplace() {
     });
   };
 
-  const categories = [...new Set((products || []).map((p: any) => p.category).filter(Boolean))];
+  const categories = [...new Set((products || []).map((p: any) => p.category).filter(Boolean))] as string[];
 
   return (
     <div>

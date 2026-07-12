@@ -29,7 +29,7 @@ export default function MarketPrices() {
     enabled: !!selectedCrop
   });
 
-  const uniqueCrops = [...new Set((prices || []).map((p: any) => p.crop_name))];
+  const uniqueCrops = [...new Set((prices || []).map((p: any) => p.crop_name))] as string[];
   const uniqueMarkets = [...new Set((prices || []).map((p: any) => p.market_name))];
 
   return (
