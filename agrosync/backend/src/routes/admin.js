@@ -62,12 +62,15 @@ router.put('/users/:id/status', async (req, res) => {
       .single();
     if (error) throw error;
 
-    await supabase.from('notifications').insert({
+    const { data: notif } = await supabase.from('notifications').insert({
       user_id: req.params.id,
       title: status === 'active' ? 'Account Approved' : 'Account Suspended',
       message: `Your account has been ${status}`,
       type: 'account'
-    });
+    }).select().single();
+
+    const io = req.app.get('io');
+    if (notif) io.to(`user:${req.params.id}`).emit('new-notification', notif);
 
     res.json(data);
   } catch (error) {

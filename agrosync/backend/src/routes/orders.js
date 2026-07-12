@@ -70,12 +70,15 @@ router.post('/', authorize('buyer'), async (req, res) => {
     }
 
     // Notify farmer
-    await supabase.from('notifications').insert({
+    const { data: notif } = await supabase.from('notifications').insert({
       user_id: farmerId,
       title: 'New Order Received',
       message: `Order #${order.id.slice(0, 8)} has been placed`,
       type: 'order'
-    });
+    }).select().single();
+
+    const io = req.app.get('io');
+    if (notif) io.to(`user:${farmerId}`).emit('new-notification', notif);
 
     res.status(201).json(order);
   } catch (error) {
@@ -138,12 +141,15 @@ router.put('/:id/status', authorize('farmer'), async (req, res) => {
 
     if (error) throw error;
 
-    await supabase.from('notifications').insert({
+    const { data: notif } = await supabase.from('notifications').insert({
       user_id: order.buyer_id,
       title: `Order ${status}`,
       message: `Order #${order.id.slice(0, 8)} has been ${status}`,
       type: 'order'
-    });
+    }).select().single();
+
+    const io = req.app.get('io');
+    if (notif) io.to(`user:${order.buyer_id}`).emit('new-notification', notif);
 
     res.json(data);
   } catch (error) {

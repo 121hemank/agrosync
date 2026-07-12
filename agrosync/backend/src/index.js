@@ -1,6 +1,9 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 
 const authRoutes = require('./routes/auth');
 const farmRoutes = require('./routes/farms');
@@ -52,6 +55,31 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+// Socket.IO for real-time notifications
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: process.env.FRONTEND_URL || '*', credentials: true }
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  socket.join(`user:${socket.userId}`);
+  socket.on('disconnect', () => {});
+});
+
+app.set('io', io);
+
+server.listen(PORT, () => {
   console.log(`AgroSync AI backend running on port ${PORT}`);
 });

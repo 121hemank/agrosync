@@ -31,11 +31,12 @@ router.post('/send-otp', async (req, res) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await supabase.from('otps').insert({ email, otp, expires_at: expiresAt });
+
     await sendOTP(email, otp);
 
     res.json({ message: 'OTP sent successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to send OTP' });
   }
 });
 

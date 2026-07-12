@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check, CheckCheck, Loader2 } from 'lucide-react';
 import { notifications } from '../services/api';
+import { connectSocket } from '../services/socket';
 
 export default function Notifications() {
   const queryClient = useQueryClient();
@@ -19,6 +21,21 @@ export default function Notifications() {
     mutationFn: () => notifications.markAllRead(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] })
   });
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    const socket = connectSocket(token);
+
+    const handler = (notif: any) => {
+      queryClient.setQueryData(['notifications'], (old: any[]) =>
+        old ? [notif, ...old] : [notif]
+      );
+    };
+
+    socket.on('new-notification', handler);
+    return () => { socket.off('new-notification', handler); };
+  }, [queryClient]);
 
   return (
     <div>

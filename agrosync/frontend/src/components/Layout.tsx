@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { auth } from '../services/api';
+import { auth, notifications } from '../services/api';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
 const farmerLinks = [
   { to: '/farmer/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -44,10 +45,27 @@ const adminLinks = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((s: RootState) => s.auth);
+
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
+    const socket = connectSocket(token);
+
+    socket.on('new-notification', () => {
+      setUnreadCount(c => c + 1);
+    });
+
+    notifications.unreadCount().then(r => setUnreadCount(r.data.count)).catch(() => {});
+
+    return () => { disconnectSocket(); };
+  }, [user]);
 
   const links = user?.role === 'farmer' ? farmerLinks
     : user?.role === 'admin' ? adminLinks
@@ -91,8 +109,13 @@ export default function Layout() {
           </button>
 
           <div className="flex items-center gap-3 ml-auto">
-            <button onClick={() => navigate('/notifications')} className="relative p-2 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => { navigate('/notifications'); setUnreadCount(0); }} className="relative p-2 hover:bg-gray-100 rounded-lg">
               <Bell className="w-5 h-5 text-gray-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
             <div className="relative">
               <button onClick={() => setProfileOpen(!profileOpen)} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
