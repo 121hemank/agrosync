@@ -71,7 +71,7 @@ export default function FarmerDashboard() {
             {[
               { icon: Sprout, label: 'Add Farm', color: 'bg-green-500', path: '/farmer/farms' },
               { icon: CloudSun, label: 'Check Weather', color: 'bg-blue-500', path: '/farmer/weather' },
-              { icon: Calendar, label: 'Crop Calendar', color: 'bg-indigo-500', path: '/farmer/calendar' },
+              { icon: Calendar, label: 'Crop Planner', color: 'bg-indigo-500', path: '/farmer/crop-planner' },
               { icon: Wallet, label: 'Track Expenses', color: 'bg-red-500', path: '/farmer/expenses' },
               { icon: TrendingDown, label: 'Market Prices', color: 'bg-amber-500', path: '/farmer/prices' },
               { icon: ShoppingBag, label: 'Marketplace', color: 'bg-purple-500', path: '/farmer/marketplace' }

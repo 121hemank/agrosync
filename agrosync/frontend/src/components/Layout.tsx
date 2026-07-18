@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import {
   LayoutDashboard, Sprout, CloudSun, ShoppingBag, Package,
   BarChart3, Bell, FileText, User, LogOut, Menu, X,
-  ChevronDown, Settings, ClipboardList, TrendingUp, Calendar,
+  ChevronDown, Settings, ClipboardList, TrendingUp,
   DollarSign, TrendingDown, ShieldCheck
 } from 'lucide-react';
 import { RootState } from '../store';
@@ -17,14 +17,13 @@ const farmerLinks = [
   { to: '/farmer/farms', icon: Sprout, label: 'Farms' },
   { to: '/farmer/weather', icon: CloudSun, label: 'Weather' },
   { to: '/farmer/crop-planner', icon: ClipboardList, label: 'Crop Planner' },
-  { to: '/farmer/calendar', icon: Calendar, label: 'Crop Calendar' },
   { to: '/farmer/expenses', icon: DollarSign, label: 'Expenses' },
   { to: '/farmer/prices', icon: TrendingDown, label: 'Market Prices' },
   { to: '/farmer/marketplace', icon: ShoppingBag, label: 'Marketplace' },
   { to: '/farmer/orders', icon: Package, label: 'Orders' },
   { to: '/farmer/revenue', icon: TrendingUp, label: 'Revenue' },
   { to: '/farmer/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/farmer/reports', icon: FileText, label: 'Reports' }
+  { to: '/reports', icon: FileText, label: 'Reports' }
 ];
 
 const buyerLinks = [
