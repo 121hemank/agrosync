@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Sprout, Package, TrendingUp, DollarSign, Calendar, CloudSun, ShoppingBag, BarChart3, Wallet, TrendingDown } from 'lucide-react';
 import { analytics, weather } from '../../services/api';
@@ -75,13 +76,13 @@ export default function FarmerDashboard() {
               { icon: TrendingDown, label: 'Market Prices', color: 'bg-amber-500', path: '/farmer/prices' },
               { icon: ShoppingBag, label: 'Marketplace', color: 'bg-purple-500', path: '/farmer/marketplace' }
             ].map((item, i) => (
-              <a key={i} href={item.path}
+              <Link key={i} to={item.path}
                 className="flex flex-col items-center gap-2 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className={`w-10 h-10 ${item.color} rounded-lg flex items-center justify-center`}>
                   <item.icon className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-sm font-medium text-gray-700">{item.label}</span>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
