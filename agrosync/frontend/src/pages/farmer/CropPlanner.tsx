@@ -6,7 +6,7 @@ import {
   ThumbsUp, ThumbsDown, ShoppingBag, Plus, Droplets, Bug, Scissors,
   Tractor, AlertTriangle, CheckCircle, X
 } from 'lucide-react';
-import { farms, cropsAPI, calendar } from '../../services/api';
+import { farms, cropsAPI, calendar, marketplace } from '../../services/api';
 
 const EVENT_TYPES = [
   { value: 'planting', label: 'Planting', icon: Sprout, color: 'bg-green-100 text-green-700' },
@@ -43,6 +43,19 @@ export default function CropPlanner() {
     queryFn: () => farms.getCrops(farmId).then(r => r.data),
     enabled: !!farmId
   });
+
+  const { data: myListings } = useQuery({
+    queryKey: ['my-listings'],
+    queryFn: () => marketplace.getMyListings().then(r => r.data)
+  });
+
+  const isCropListed = (cropId: string) => {
+    return myListings?.some((p: any) =>
+      p.crop_id === cropId &&
+      p.farm_id === farmId &&
+      p.status !== 'archived'
+    );
+  };
 
   const plantMutation = useMutation({
     mutationFn: (data: any) => farms.plantCrop(farmId, data),
@@ -142,6 +155,7 @@ export default function CropPlanner() {
           statusMutation={statusMutation}
           statusBadge={statusBadge}
           navigate={navigate}
+          isCropListed={isCropListed}
         />
       )}
 
@@ -152,7 +166,7 @@ export default function CropPlanner() {
   );
 }
 
-function CropsTab({ farmId, userCrops, showForm, setShowForm, form, setForm, error, cropsList, handleSubmit, plantMutation, statusMutation, statusBadge, navigate }: any) {
+function CropsTab({ farmId, userCrops, showForm, setShowForm, form, setForm, error, cropsList, handleSubmit, plantMutation, statusMutation, statusBadge, navigate, isCropListed }: any) {
   return (
     <>
       {showForm && (
@@ -230,10 +244,16 @@ function CropsTab({ farmId, userCrops, showForm, setShowForm, form, setForm, err
                     </>
                   )}
                   {crop.status === 'harvested' && (
-                    <button onClick={() => navigate(`/farmer/marketplace?cropName=${encodeURIComponent(crop.crops?.crop_name || crop.crop_id)}&farmId=${farmId}&cropId=${crop.crop_id}&area=${crop.area_used || ''}`)}
-                      className="flex items-center gap-1 text-xs bg-primary text-white px-3 py-1.5 rounded-full hover:bg-primary-700">
-                      <ShoppingBag className="w-3 h-3" /> List in Marketplace
-                    </button>
+                    isCropListed(crop.crop_id) ? (
+                      <span className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-3 py-1.5 rounded-full cursor-not-allowed" title="Already listed in marketplace">
+                        <ShoppingBag className="w-3 h-3" /> Listed in Market
+                      </span>
+                    ) : (
+                      <button onClick={() => navigate(`/farmer/marketplace?cropName=${encodeURIComponent(crop.crops?.crop_name || crop.crop_id)}&farmId=${farmId}&cropId=${crop.crop_id}&area=${crop.area_used || ''}`)}
+                        className="flex items-center gap-1 text-xs bg-primary text-white px-3 py-1.5 rounded-full hover:bg-primary-700">
+                        <ShoppingBag className="w-3 h-3" /> List in Marketplace
+                      </button>
+                    )
                   )}
                   {statusBadge(crop.status)}
                 </div>
