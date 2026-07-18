@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Sprout, Calendar as CalIcon, CheckCircle2, XCircle, Clock, AlertCircle,
   ThumbsUp, ThumbsDown, ShoppingBag, Plus, Droplets, Bug, Scissors,
-  Tractor, AlertTriangle, CheckCircle, X
+  Tractor, AlertTriangle, CheckCircle, X, Pencil
 } from 'lucide-react';
 import { farms, cropsAPI, calendar, marketplace } from '../../services/api';
 
@@ -270,11 +270,31 @@ function CalendarTab({ farmId }: { farmId: string }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
   const [showForm, setShowForm] = useState(false);
+  const [editEvent, setEditEvent] = useState<any>(null);
   const [showAlerts, setShowAlerts] = useState(false);
   const [form, setForm] = useState({
     crop_name: '', event_type: 'planting', event_date: '', end_date: '', notes: '', priority: 'medium', farm_id: ''
   });
   const queryClient = useQueryClient();
+
+  const FARM_COLORS = [
+    { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500', range: 'bg-blue-50 border-blue-200' },
+    { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500', range: 'bg-purple-50 border-purple-200' },
+    { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500', range: 'bg-amber-50 border-amber-200' },
+    { bg: 'bg-pink-100', text: 'text-pink-700', dot: 'bg-pink-500', range: 'bg-pink-50 border-pink-200' },
+    { bg: 'bg-teal-100', text: 'text-teal-700', dot: 'bg-teal-500', range: 'bg-teal-50 border-teal-200' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500', range: 'bg-indigo-50 border-indigo-200' },
+  ];
+
+  const { data: allFarms } = useQuery({
+    queryKey: ['farms'],
+    queryFn: () => farms.getAll().then(r => r.data)
+  });
+
+  const farmColorMap: Record<string, typeof FARM_COLORS[0]> = {};
+  (allFarms || []).forEach((f: any, i: number) => {
+    farmColorMap[f.id] = FARM_COLORS[i % FARM_COLORS.length];
+  });
 
   const { data: events } = useQuery({
     queryKey: ['calendar-events', farmId, selectedMonth, selectedYear],
@@ -286,11 +306,22 @@ function CalendarTab({ farmId }: { farmId: string }) {
     queryFn: () => calendar.getAlerts().then(r => r.data)
   });
 
+  const unreadAlerts = (alerts || []).filter((a: any) => !a.is_read);
+
   const createMutation = useMutation({
     mutationFn: (data: any) => calendar.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
       setShowForm(false);
+      setForm({ crop_name: '', event_type: 'planting', event_date: '', end_date: '', notes: '', priority: 'medium', farm_id: '' });
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => calendar.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      setEditEvent(null);
       setForm({ crop_name: '', event_type: 'planting', event_date: '', end_date: '', notes: '', priority: 'medium', farm_id: '' });
     }
   });
@@ -313,19 +344,60 @@ function CalendarTab({ farmId }: { farmId: string }) {
     }
   });
 
-  const unreadAlerts = (alerts || []).filter((a: any) => !a.is_read);
+  useState(() => {
+    if (unreadAlerts.length > 0) setShowAlerts(true);
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ ...form, farm_id: farmId });
+    if (editEvent) {
+      updateMutation.mutate({ id: editEvent.id, data: { ...form, farm_id: farmId } });
+    } else {
+      createMutation.mutate({ ...form, farm_id: farmId });
+    }
+  };
+
+  const openEditForm = (event: any) => {
+    setForm({
+      crop_name: event.crop_name,
+      event_type: event.event_type,
+      event_date: event.event_date,
+      end_date: event.end_date || '',
+      notes: event.notes || '',
+      priority: event.priority || 'medium',
+      farm_id: event.farm_id || farmId
+    });
+    setEditEvent(event);
+    setShowForm(true);
+  };
+
+  const openNewForm = () => {
+    setForm({ crop_name: '', event_type: 'planting', event_date: '', end_date: '', notes: '', priority: 'medium', farm_id: '' });
+    setEditEvent(null);
+    setShowForm(true);
   };
 
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
   const firstDay = new Date(selectedYear, selectedMonth - 1, 1).getDay();
 
+  const isInRange = (day: number, ev: any) => {
+    if (!ev.end_date) return false;
+    const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return dateStr >= ev.event_date && dateStr <= ev.end_date && dateStr !== ev.event_date;
+  };
+
+  const isStartDay = (day: number, ev: any) => {
+    const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return ev.event_date === dateStr;
+  };
+
   const getEventsForDay = (day: number) => {
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return (events || []).filter((e: any) => e.event_date === dateStr);
+    return (events || []).filter((e: any) => {
+      if (e.event_date === dateStr) return true;
+      if (e.end_date && dateStr > e.event_date && dateStr <= e.end_date) return true;
+      return false;
+    });
   };
 
   return (
@@ -333,21 +405,24 @@ function CalendarTab({ farmId }: { farmId: string }) {
       <div className="flex items-center justify-between mb-6">
         <div />
         <div className="flex gap-2">
-          <button onClick={() => setShowAlerts(!showAlerts)}
+          <button onClick={() => {
+            if (unreadAlerts.length > 0) { setShowAlerts(!showAlerts); }
+            else { generateAlertsMutation.mutate(farmId); }
+          }}
             className="relative flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100">
             <AlertTriangle className="w-4 h-4" /> Weather Alerts
             {unreadAlerts.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{unreadAlerts.length}</span>
             )}
           </button>
-          <button onClick={() => setShowForm(!showForm)}
+          <button onClick={openNewForm}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-700">
             <Plus className="w-4 h-4" /> Add Event
           </button>
         </div>
       </div>
 
-      {showAlerts && (
+      {(showAlerts || unreadAlerts.length > 0) && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-heading font-semibold text-lg flex items-center gap-2">
@@ -358,7 +433,7 @@ function CalendarTab({ farmId }: { farmId: string }) {
           {!alerts || alerts.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No weather alerts</p>
+              <p>No weather alerts detected</p>
               <button onClick={() => generateAlertsMutation.mutate(farmId)}
                 className="mt-3 text-sm text-primary hover:underline">Check weather for your farm</button>
             </div>
@@ -391,7 +466,7 @@ function CalendarTab({ farmId }: { farmId: string }) {
 
       {showForm && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 mb-6">
-          <h2 className="font-heading font-semibold text-lg mb-4">Add Calendar Event</h2>
+          <h2 className="font-heading font-semibold text-lg mb-4">{editEvent ? 'Edit Event' : 'Add Calendar Event'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
@@ -407,7 +482,7 @@ function CalendarTab({ farmId }: { farmId: string }) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                 <input type="date" value={form.event_date} onChange={e => setForm({ ...form, event_date: e.target.value })} required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
               </div>
@@ -432,13 +507,27 @@ function CalendarTab({ farmId }: { farmId: string }) {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
             </div>
             <div className="flex gap-2">
-              <button type="submit" disabled={createMutation.isPending}
+              <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}
                 className="bg-primary text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
-                {createMutation.isPending ? 'Adding...' : 'Add Event'}
+                {editEvent ? (updateMutation.isPending ? 'Saving...' : 'Save Changes') : (createMutation.isPending ? 'Adding...' : 'Add Event')}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={() => { setShowForm(false); setEditEvent(null); }} className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {(allFarms || []).length > 1 && (
+        <div className="flex flex-wrap gap-3 mb-4">
+          {(allFarms || []).map((f: any) => {
+            const fc = farmColorMap[f.id] || FARM_COLORS[0];
+            return (
+              <div key={f.id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className={`w-3 h-3 rounded-full ${fc.dot}`} />
+                {f.farm_name}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -465,17 +554,29 @@ function CalendarTab({ farmId }: { farmId: string }) {
               const dayEvents = getEventsForDay(day);
               const isToday = new Date().getDate() === day && new Date().getMonth() + 1 === selectedMonth && new Date().getFullYear() === selectedYear;
               return (
-                <div key={day} className={`min-h-[60px] p-1 border rounded text-xs ${isToday ? 'border-primary bg-green-50' : 'border-gray-100'}`}>
+                <div key={day} className={`min-h-[64px] p-1 border rounded text-xs ${isToday ? 'border-primary bg-green-50' : 'border-gray-100'}`}>
                   <span className={`font-medium ${isToday ? 'text-primary' : 'text-gray-700'}`}>{day}</span>
-                  {dayEvents.slice(0, 2).map((ev: any) => {
-                    const typeInfo = EVENT_TYPES.find(t => t.value === ev.event_type) || EVENT_TYPES[5];
-                    return (
-                      <div key={ev.id} className={`mt-0.5 px-1 py-0.5 rounded text-[10px] truncate ${typeInfo.color}`}>
-                        {ev.crop_name}
-                      </div>
-                    );
-                  })}
-                  {dayEvents.length > 2 && <div className="text-[10px] text-gray-400">+{dayEvents.length - 2} more</div>}
+                  <div className="space-y-0.5 mt-0.5">
+                    {dayEvents.slice(0, 3).map((ev: any) => {
+                      const typeInfo = EVENT_TYPES.find(t => t.value === ev.event_type) || EVENT_TYPES[5];
+                      const fc = farmColorMap[ev.farm_id] || FARM_COLORS[0];
+                      const start = isStartDay(day, ev);
+                      const inRange = isInRange(day, ev);
+                      if (inRange) {
+                        return (
+                          <div key={ev.id} className={`px-1 py-0.5 rounded text-[10px] truncate ${fc.range} border ${fc.text} border-dashed`}>
+                            {ev.crop_name}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={ev.id} className={`px-1 py-0.5 rounded text-[10px] truncate ${typeInfo.color} ${ev.end_date ? 'border-l-2 ' + fc.text : ''}`}>
+                          {start ? ev.crop_name : ev.crop_name}
+                        </div>
+                      );
+                    })}
+                    {dayEvents.length > 3 && <div className="text-[10px] text-gray-400">+{dayEvents.length - 3} more</div>}
+                  </div>
                 </div>
               );
             })}
@@ -485,9 +586,10 @@ function CalendarTab({ farmId }: { farmId: string }) {
         <div className="bg-white p-6 rounded-xl border border-gray-200">
           <h2 className="font-heading font-semibold text-lg mb-4">Upcoming Events</h2>
           <div className="space-y-3">
-            {(events || []).filter((e: any) => e.status === 'pending').slice(0, 8).map((event: any) => {
+            {(events || []).filter((e: any) => e.status === 'pending').slice(0, 10).map((event: any) => {
               const typeInfo = EVENT_TYPES.find(t => t.value === event.event_type) || EVENT_TYPES[5];
               const Icon = typeInfo.icon;
+              const fc = farmColorMap[event.farm_id] || FARM_COLORS[0];
               return (
                 <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-start justify-between">
@@ -497,13 +599,21 @@ function CalendarTab({ farmId }: { farmId: string }) {
                       </div>
                       <div>
                         <p className="font-medium text-sm">{event.crop_name}</p>
-                        <p className="text-xs text-gray-500">{typeInfo.label} · {event.event_date}</p>
+                        <p className="text-xs text-gray-500">{typeInfo.label} · {event.event_date}{event.end_date ? ` → ${event.end_date}` : ''}</p>
+                        {(allFarms || []).length > 1 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className={`w-2 h-2 rounded-full ${fc.dot}`} />
+                            <span className="text-[10px] text-gray-400">{(allFarms || []).find((f: any) => f.id === event.farm_id)?.farm_name || 'Farm'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <button onClick={() => openEditForm(event)} title="Edit"
+                        className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Pencil className="w-4 h-4" /></button>
                       <button onClick={() => completeMutation.mutate(event.id)} title="Mark complete"
                         className="p-1 text-green-600 hover:bg-green-50 rounded"><CheckCircle className="w-4 h-4" /></button>
-                      <button onClick={() => deleteMutation.mutate(event.id)} title="Delete"
+                      <button onClick={() => { if (confirm('Delete this event?')) deleteMutation.mutate(event.id); }} title="Delete"
                         className="p-1 text-red-600 hover:bg-red-50 rounded"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
