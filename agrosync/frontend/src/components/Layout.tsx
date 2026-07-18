@@ -83,7 +83,7 @@ export default function Layout() {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center gap-2 px-6 h-16 border-b border-gray-200">
           <Sprout className="w-7 h-7 text-primary" />
-          <span className="font-heading font-bold text-xl text-primary">AgroSync AI</span>
+          <span className="font-heading font-bold text-xl text-primary">AgroSync</span>
         </div>
         <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-64px)]">
           {links.map((link) => {

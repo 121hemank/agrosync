@@ -52,8 +52,8 @@ export default function Register() {
       <div className="hidden lg:flex w-1/2 bg-primary items-center justify-center">
         <div className="text-center text-white px-12">
           <Sprout className="w-16 h-16 mx-auto mb-6" />
-          <h1 className="font-heading text-4xl font-bold mb-4">Join AgroSync AI</h1>
-          <p className="text-lg text-green-100">Empowering farmers with AI technology</p>
+          <h1 className="font-heading text-4xl font-bold mb-4">Join AgroSync</h1>
+          <p className="text-lg text-green-100">Empowering farmers with smart technology</p>
         </div>
       </div>
 

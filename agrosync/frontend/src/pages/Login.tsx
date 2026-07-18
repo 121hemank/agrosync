@@ -34,8 +34,8 @@ export default function Login() {
       <div className="hidden lg:flex w-1/2 bg-primary items-center justify-center relative overflow-hidden">
         <div className="text-center text-white z-10 px-12">
           <Sprout className="w-16 h-16 mx-auto mb-6" />
-          <h1 className="font-heading text-4xl font-bold mb-4">AgroSync AI</h1>
-          <p className="text-lg text-green-100">Smart farming with AI-powered insights</p>
+          <h1 className="font-heading text-4xl font-bold mb-4">AgroSync</h1>
+          <p className="text-lg text-green-100">Smart farming made simple</p>
         </div>
       </div>
 
@@ -44,7 +44,7 @@ export default function Login() {
           <div className="text-center mb-8">
             <Sprout className="w-10 h-10 text-primary mx-auto mb-3 lg:hidden" />
             <h2 className="font-heading text-2xl font-bold">Welcome Back</h2>
-            <p className="text-gray-500 mt-1">Login to your AgroSync AI account</p>
+            <p className="text-gray-500 mt-1">Login to your AgroSync account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
