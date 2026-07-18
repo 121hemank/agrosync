@@ -52,7 +52,146 @@ router.get('/upcoming', async (req, res) => {
   }
 });
 
-// Get calendar event by id
+// Get weather alerts for user
+router.get('/alerts/weather', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('weather_alerts')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark weather alert as read
+router.patch('/alerts/:alertId/read', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('weather_alerts')
+      .update({ is_read: true })
+      .eq('id', req.params.alertId)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Alert not found' });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate weather-based alerts for a farm
+router.post('/alerts/generate', async (req, res) => {
+  try {
+    const { farm_id } = req.body;
+    if (!farm_id) return res.status(400).json({ error: 'farm_id required' });
+
+    const { data: farm } = await supabase
+      .from('farms')
+      .select('latitude, longitude, farm_name')
+      .eq('id', farm_id)
+      .single();
+
+    if (!farm) return res.status(404).json({ error: 'Farm not found' });
+    if (!farm.latitude || !farm.longitude) return res.status(400).json({ error: 'Farm latitude and longitude are required for weather alerts' });
+
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'OpenWeather API key not configured' });
+
+    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${farm.latitude}&lon=${farm.longitude}&appid=${apiKey}&units=metric`;
+    const response = await fetch(url);
+    const forecastData = await response.json();
+
+    if (forecastData.cod && forecastData.cod !== '200') {
+      return res.status(500).json({ error: `Weather API error: ${forecastData.message}` });
+    }
+
+    const alerts = [];
+
+    (forecastData.list || []).forEach(item => {
+      const temp = item.main.temp;
+      const humidity = item.main.humidity;
+      const rain = item.rain ? (item.rain['3h'] || 0) : 0;
+      const wind = item.wind?.speed || 0;
+
+      if (temp < 2) {
+        alerts.push({
+          farm_id,
+          user_id: req.user.id,
+          alert_type: 'frost',
+          severity: temp < 0 ? 'critical' : 'high',
+          title: `Frost Warning for ${farm.farm_name}`,
+          message: `Temperature expected to drop to ${temp.toFixed(1)}°C. Protect sensitive crops from frost damage.`,
+          temperature: temp,
+          humidity,
+          rainfall_mm: rain,
+          wind_speed: wind
+        });
+      } else if (temp > 40) {
+        alerts.push({
+          farm_id,
+          user_id: req.user.id,
+          alert_type: 'heatwave',
+          severity: temp > 45 ? 'critical' : 'high',
+          title: `Heatwave Alert for ${farm.farm_name}`,
+          message: `Temperature expected to reach ${temp.toFixed(1)}°C. Ensure adequate irrigation and shade for crops.`,
+          temperature: temp,
+          humidity,
+          rainfall_mm: rain,
+          wind_speed: wind
+        });
+      } else if (rain > 50) {
+        alerts.push({
+          farm_id,
+          user_id: req.user.id,
+          alert_type: 'heavy_rain',
+          severity: rain > 100 ? 'critical' : 'high',
+          title: `Heavy Rain Alert for ${farm.farm_name}`,
+          message: `${rain.toFixed(1)}mm rainfall expected. Prepare drainage and protect standing crops.`,
+          temperature: temp,
+          humidity,
+          rainfall_mm: rain,
+          wind_speed: wind
+        });
+      } else if (wind > 15) {
+        alerts.push({
+          farm_id,
+          user_id: req.user.id,
+          alert_type: 'storm',
+          severity: wind > 25 ? 'critical' : 'moderate',
+          title: `Storm Warning for ${farm.farm_name}`,
+          message: `Strong winds of ${wind.toFixed(1)} m/s expected. Secure farm equipment and structures.`,
+          temperature: temp,
+          humidity,
+          rainfall_mm: rain,
+          wind_speed: wind
+        });
+      }
+    });
+
+    if (alerts.length > 0) {
+      const uniqueAlerts = alerts.filter((alert, index, self) =>
+        index === self.findIndex(a => a.alert_type === alert.alert_type)
+      );
+      const { data } = await supabase.from('weather_alerts').insert(uniqueAlerts).select();
+      res.json({ alerts: data, count: data.length });
+    } else {
+      res.json({ alerts: [], count: 0, message: 'No severe weather conditions detected for the next 5 days' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get calendar event by id (must be after /alerts/* routes)
 router.get('/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -131,7 +270,6 @@ router.delete('/:id', async (req, res) => {
       .delete()
       .eq('id', req.params.id)
       .eq('user_id', req.user.id);
-
     if (error) throw error;
     res.json({ message: 'Event deleted' });
   } catch (error) {
@@ -153,139 +291,6 @@ router.patch('/:id/complete', async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Event not found' });
     res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get weather alerts for user
-router.get('/alerts/weather', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('weather_alerts')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) throw error;
-    res.json(data || []);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Mark weather alert as read
-router.patch('/alerts/:alertId/read', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('weather_alerts')
-      .update({ is_read: true })
-      .eq('id', req.params.alertId)
-      .eq('user_id', req.user.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Alert not found' });
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Generate weather-based alerts for a farm
-router.post('/alerts/generate', async (req, res) => {
-  try {
-    const { farm_id } = req.body;
-    if (!farm_id) return res.status(400).json({ error: 'farm_id required' });
-
-    const { data: farm } = await supabase
-      .from('farms')
-      .select('latitude, longitude, farm_name')
-      .eq('id', farm_id)
-      .single();
-
-    if (!farm) return res.status(404).json({ error: 'Farm not found' });
-
-    const apiKey = process.env.OPENWEATHER_API_KEY;
-    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${farm.latitude}&lon=${farm.longitude}&appid=${apiKey}&units=metric`;
-    const response = await fetch(url);
-    const forecastData = await response.json();
-
-    const alerts = [];
-    const now = new Date();
-
-    (forecastData.list || []).forEach(item => {
-      const temp = item.main.temp;
-      const humidity = item.main.humidity;
-      const rain = item.rain ? (item.rain['3h'] || 0) : 0;
-      const wind = item.wind?.speed || 0;
-
-      if (temp < 2) {
-        alerts.push({
-          farm_id,
-          user_id: req.user.id,
-          alert_type: 'frost',
-          severity: temp < 0 ? 'critical' : 'high',
-          title: `Frost Warning for ${farm.farm_name}`,
-          message: `Temperature expected to drop to ${temp.toFixed(1)}°C. Protect sensitive crops from frost damage.`,
-          temperature: temp,
-          humidity,
-          rainfall_mm: rain,
-          wind_speed: wind
-        });
-      } else if (temp > 40) {
-        alerts.push({
-          farm_id,
-          user_id: req.user.id,
-          alert_type: 'heatwave',
-          severity: temp > 45 ? 'critical' : 'high',
-          title: `Heatwave Alert for ${farm.farm_name}`,
-          message: `Temperature expected to reach ${temp.toFixed(1)}°C. Ensure adequate irrigation and shade for crops.`,
-          temperature: temp,
-          humidity,
-          rainfall_mm: rain,
-          wind_speed: wind
-        });
-      } else if (rain > 50) {
-        alerts.push({
-          farm_id,
-          user_id: req.user.id,
-          alert_type: 'heavy_rain',
-          severity: rain > 100 ? 'critical' : 'high',
-          title: `Heavy Rain Alert for ${farm.farm_name}`,
-          message: `${rain.toFixed(1)}mm rainfall expected. Prepare drainage and protect standing crops.`,
-          temperature: temp,
-          humidity,
-          rainfall_mm: rain,
-          wind_speed: wind
-        });
-      } else if (wind > 15) {
-        alerts.push({
-          farm_id,
-          user_id: req.user.id,
-          alert_type: 'storm',
-          severity: wind > 25 ? 'critical' : 'moderate',
-          title: `Storm Warning for ${farm.farm_name}`,
-          message: `Strong winds of ${wind.toFixed(1)} m/s expected. Secure farm equipment and structures.`,
-          temperature: temp,
-          humidity,
-          rainfall_mm: rain,
-          wind_speed: wind
-        });
-      }
-    });
-
-    if (alerts.length > 0) {
-      const uniqueAlerts = alerts.filter((alert, index, self) =>
-        index === self.findIndex(a => a.alert_type === alert.alert_type)
-      );
-      const { data } = await supabase.from('weather_alerts').insert(uniqueAlerts).select();
-      res.json({ alerts: data, count: data.length });
-    } else {
-      res.json({ alerts: [], count: 0, message: 'No severe weather conditions detected' });
-    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
