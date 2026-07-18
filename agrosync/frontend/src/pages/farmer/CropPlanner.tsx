@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Sprout, Calendar as CalIcon, CheckCircle2, XCircle, Clock, AlertCircle,
   ThumbsUp, ThumbsDown, ShoppingBag, Plus, Droplets, Bug, Scissors,
-  Tractor, AlertTriangle, CheckCircle, X, Pencil
+  Tractor, CheckCircle, X, Pencil
 } from 'lucide-react';
 import { farms, cropsAPI, calendar, marketplace } from '../../services/api';
 
@@ -271,7 +271,6 @@ function CalendarTab({ farmId }: { farmId: string }) {
   const [selectedYear] = useState(new Date().getFullYear());
   const [showForm, setShowForm] = useState(false);
   const [editEvent, setEditEvent] = useState<any>(null);
-  const [showAlerts, setShowAlerts] = useState(false);
   const [form, setForm] = useState({
     crop_name: '', event_type: 'planting', event_date: '', end_date: '', notes: '', priority: 'medium', farm_id: ''
   });
@@ -301,13 +300,6 @@ function CalendarTab({ farmId }: { farmId: string }) {
     queryFn: () => calendar.getAll({ farm_id: farmId, month: selectedMonth, year: selectedYear }).then(r => r.data)
   });
 
-  const { data: alerts } = useQuery({
-    queryKey: ['weather-alerts'],
-    queryFn: () => calendar.getAlerts().then(r => r.data)
-  });
-
-  const unreadAlerts = (alerts || []).filter((a: any) => !a.is_read);
-
   const createMutation = useMutation({
     mutationFn: (data: any) => calendar.create(data),
     onSuccess: () => {
@@ -334,18 +326,6 @@ function CalendarTab({ farmId }: { farmId: string }) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => calendar.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
-  });
-
-  const generateAlertsMutation = useMutation({
-    mutationFn: (fId: string) => calendar.generateAlerts(fId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weather-alerts'] });
-      setShowAlerts(true);
-    }
-  });
-
-  useState(() => {
-    if (unreadAlerts.length > 0) setShowAlerts(true);
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -402,67 +382,12 @@ function CalendarTab({ farmId }: { farmId: string }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <div />
-        <div className="flex gap-2">
-          <button onClick={() => {
-            if (unreadAlerts.length > 0) { setShowAlerts(!showAlerts); }
-            else { generateAlertsMutation.mutate(farmId); }
-          }}
-            className="relative flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100">
-            <AlertTriangle className="w-4 h-4" /> Weather Alerts
-            {unreadAlerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{unreadAlerts.length}</span>
-            )}
-          </button>
-          <button onClick={openNewForm}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-700">
-            <Plus className="w-4 h-4" /> Add Event
-          </button>
-        </div>
+      <div className="flex items-center justify-end mb-6">
+        <button onClick={openNewForm}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-700">
+          <Plus className="w-4 h-4" /> Add Event
+        </button>
       </div>
-
-      {(showAlerts || unreadAlerts.length > 0) && (
-        <div className="bg-white p-6 rounded-xl border border-gray-200 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-heading font-semibold text-lg flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" /> Weather Alerts
-            </h2>
-            <button onClick={() => setShowAlerts(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-          </div>
-          {!alerts || alerts.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No weather alerts detected</p>
-              <button onClick={() => generateAlertsMutation.mutate(farmId)}
-                className="mt-3 text-sm text-primary hover:underline">Check weather for your farm</button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {alerts.map((alert: any) => (
-                <div key={alert.id} className={`p-4 rounded-lg border ${alert.is_read ? 'bg-gray-50 border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium">{alert.title}</p>
-                      <p className="text-sm text-gray-600 mt-1">{alert.message}</p>
-                      <div className="flex gap-2 mt-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${alert.severity === 'critical' ? 'bg-red-100 text-red-700' : alert.severity === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {alert.severity}
-                        </span>
-                        <span className="text-xs text-gray-500">{alert.alert_type.replace('_', ' ')}</span>
-                      </div>
-                    </div>
-                    {!alert.is_read && (
-                      <button onClick={() => calendar.markAlertRead(alert.id).then(() => queryClient.invalidateQueries({ queryKey: ['weather-alerts'] }))}
-                        className="text-xs text-primary hover:underline">Mark read</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {showForm && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 mb-6">
@@ -617,11 +542,6 @@ function CalendarTab({ farmId }: { farmId: string }) {
                         className="p-1 text-red-600 hover:bg-red-50 rounded"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  {event.weather_alert && (
-                    <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
-                      <AlertTriangle className="w-3 h-3" /> {event.alert_message || 'Weather alert active'}
-                    </div>
-                  )}
                 </div>
               );
             })}
