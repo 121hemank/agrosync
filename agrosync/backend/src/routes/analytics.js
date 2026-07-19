@@ -63,17 +63,62 @@ router.get('/dashboard', async (req, res) => {
 // Revenue analytics
 router.get('/revenue', async (req, res) => {
   try {
-    const { year } = req.query;
-    const filterYear = year || new Date().getFullYear();
+    const { year, farm_id } = req.query;
+    const targetYear = year || new Date().getFullYear();
 
-    const { data } = await supabase
-      .from('analytics')
-      .select('*')
+    let orderQuery = supabase
+      .from('orders')
+      .select('total, created_at, status')
       .eq('farmer_id', req.user.id)
-      .eq('year', filterYear)
-      .order('month', { ascending: true });
+      .eq('status', 'completed')
+      .gte('created_at', `${targetYear}-01-01T00:00:00Z`)
+      .lte('created_at', `${targetYear}-12-31T23:59:59Z`);
 
-    res.json(data || []);
+    if (farm_id) {
+      const { data: farmProducts } = await supabase
+        .from('marketplace_products')
+        .select('id')
+        .eq('farm_id', farm_id);
+      const productIds = farmProducts?.map(p => p.id) || [];
+      if (productIds.length === 0) return res.json({ monthly: [], daily: [], total: 0, ordersCount: 0 });
+
+      const { data: farmOrders } = await supabase
+        .from('order_items')
+        .select('order_id')
+        .in('product_id', productIds);
+      const orderIds = [...new Set(farmOrders?.map(o => o.order_id) || [])];
+      if (orderIds.length === 0) return res.json({ monthly: [], daily: [], total: 0, ordersCount: 0 });
+
+      orderQuery = orderQuery.in('id', orderIds);
+    }
+
+    const { data: orders, error } = await orderQuery;
+    if (error) throw error;
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthly = Array(12).fill(0);
+    const dailyMap = new Map();
+    let total = 0;
+
+    (orders || []).forEach(o => {
+      const d = new Date(o.created_at);
+      const month = d.getMonth();
+      const dayKey = d.toISOString().split('T')[0];
+      monthly[month] += Number(o.total || 0);
+      dailyMap.set(dayKey, (dailyMap.get(dayKey) || 0) + Number(o.total || 0));
+      total += Number(o.total || 0);
+    });
+
+    const daily = [...dailyMap.entries()]
+      .map(([date, revenue]) => ({ date, revenue }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json({
+      monthly: months.map((name, i) => ({ name, month: i + 1, revenue: monthly[i] })),
+      daily,
+      total,
+      ordersCount: orders?.length || 0
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

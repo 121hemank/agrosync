@@ -89,7 +89,7 @@ export const ai = {
 
 export const analytics = {
   dashboard: () => api.get('/analytics/dashboard'),
-  revenue: (year?: number) => api.get('/analytics/revenue', { params: { year } }),
+  revenue: (year?: number, farm_id?: string) => api.get('/analytics/revenue', { params: { year, farm_id } }),
   crops: () => api.get('/analytics/crops'),
   marketTrends: () => api.get('/analytics/market-trends'),
   buyer: () => api.get('/analytics/buyer')
