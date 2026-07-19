@@ -374,6 +374,7 @@ function CalendarTab({ farmId }: { farmId: string }) {
   const getEventsForDay = (day: number) => {
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return (events || []).filter((e: any) => {
+      if (e.status !== 'pending') return false;
       if (e.event_date === dateStr) return true;
       if (e.end_date && dateStr > e.event_date && dateStr <= e.end_date) return true;
       return false;

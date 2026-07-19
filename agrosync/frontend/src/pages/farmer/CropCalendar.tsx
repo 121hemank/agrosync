@@ -85,7 +85,7 @@ export default function CropCalendar() {
 
   const getEventsForDay = (day: number) => {
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return (events || []).filter((e: any) => e.event_date === dateStr);
+    return (events || []).filter((e: any) => e.status === 'pending' && e.event_date === dateStr);
   };
 
   return (
