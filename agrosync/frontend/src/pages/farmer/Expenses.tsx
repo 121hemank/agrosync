@@ -91,6 +91,7 @@ export default function Expenses() {
       ...form,
       amount: parseFloat(form.amount),
       quantity: form.quantity ? parseFloat(form.quantity) : undefined,
+      crop_id: form.crop_id || undefined,
       farm_id: form.farm_id || selectedFarm || undefined
     });
   };

@@ -28,83 +28,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get expense by id
-router.get('/:id', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('farm_expenses')
-      .select('*, crops(crop_name)')
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (error || !data) return res.status(404).json({ error: 'Expense not found' });
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Create expense
-router.post('/', async (req, res) => {
-  try {
-    const { farm_id, expense_category, description, amount, expense_date, crop_id, quantity, unit } = req.body;
-
-    const { data, error } = await supabase.from('farm_expenses').insert({
-      farm_id,
-      user_id: req.user.id,
-      expense_category,
-      description,
-      amount,
-      expense_date,
-      crop_id,
-      quantity,
-      unit
-    }).select().single();
-
-    if (error) throw error;
-    res.status(201).json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update expense
-router.put('/:id', async (req, res) => {
-  try {
-    const { farm_id, expense_category, description, amount, expense_date, crop_id, quantity, unit } = req.body;
-    const { data, error } = await supabase
-      .from('farm_expenses')
-      .update({ farm_id, expense_category, description, amount, expense_date, crop_id, quantity, unit })
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Expense not found' });
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete expense
-router.delete('/:id', async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from('farm_expenses')
-      .delete()
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id);
-
-    if (error) throw error;
-    res.json({ message: 'Expense deleted' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Get expense summary by category
 router.get('/summary/by-category', async (req, res) => {
   try {
@@ -233,4 +156,80 @@ router.get('/summary/profitability', async (req, res) => {
   }
 });
 
+// Get expense by id
+router.get('/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('farm_expenses')
+      .select('*, crops(crop_name)')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Expense not found' });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create expense
+router.post('/', async (req, res) => {
+  try {
+    const { farm_id, expense_category, description, amount, expense_date, crop_id, quantity, unit } = req.body;
+
+    const { data, error } = await supabase.from('farm_expenses').insert({
+      farm_id,
+      user_id: req.user.id,
+      expense_category,
+      description,
+      amount,
+      expense_date,
+      crop_id: crop_id || null,
+      quantity: quantity || null,
+      unit: unit || null
+    }).select().single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update expense
+router.put('/:id', async (req, res) => {
+  try {
+    const { farm_id, expense_category, description, amount, expense_date, crop_id, quantity, unit } = req.body;
+    const { data, error } = await supabase
+      .from('farm_expenses')
+      .update({ farm_id, expense_category, description, amount, expense_date, crop_id: crop_id || null, quantity: quantity || null, unit: unit || null })
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Expense not found' });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete expense
+router.delete('/:id', async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('farm_expenses')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+    res.json({ message: 'Expense deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = router;
