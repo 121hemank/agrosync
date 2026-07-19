@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, ArcElement } from 'chart.js';
-import { DollarSign, Plus, TrendingUp, TrendingDown, Trash2, Edit2, X, Wallet, PieChart } from 'lucide-react';
+import { DollarSign, Plus, TrendingUp, TrendingDown, Trash2, Edit2, X, Wallet, PieChart, AlertCircle } from 'lucide-react';
 import { expenses as expensesAPI, farms } from '../../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, ArcElement);
@@ -63,6 +63,8 @@ export default function Expenses() {
     queryFn: () => expensesAPI.profitability({ farm_id: selectedFarm || undefined, year: selectedYear }).then(r => r.data)
   });
 
+  const [submitError, setSubmitError] = useState('');
+
   const createMutation = useMutation({
     mutationFn: (data: any) => expensesAPI.create(data),
     onSuccess: () => {
@@ -71,7 +73,11 @@ export default function Expenses() {
       queryClient.invalidateQueries({ queryKey: ['expense-monthly'] });
       queryClient.invalidateQueries({ queryKey: ['profitability'] });
       setShowForm(false);
+      setSubmitError('');
       setForm({ farm_id: '', expense_category: 'seeds', description: '', amount: '', expense_date: '', crop_id: '', quantity: '', unit: '' });
+    },
+    onError: (err: any) => {
+      setSubmitError(err.response?.data?.error || err.message || 'Failed to add expense');
     }
   });
 
@@ -87,9 +93,10 @@ export default function Expenses() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError('');
     createMutation.mutate({
       ...form,
-      amount: parseFloat(form.amount),
+      amount: parseFloat(form.amount) || 0,
       quantity: form.quantity ? parseFloat(form.quantity) : undefined,
       crop_id: form.crop_id || undefined,
       farm_id: form.farm_id || selectedFarm || undefined
@@ -209,6 +216,11 @@ export default function Expenses() {
         <div className="bg-white p-6 rounded-xl border border-gray-200 mb-6">
           <h2 className="font-heading font-semibold text-lg mb-4">Add Expense</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {submitError && (
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-2 rounded-lg text-sm">
+                <AlertCircle className="w-4 h-4" /> {submitError}
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Farm</label>
