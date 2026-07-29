@@ -45,6 +45,11 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/market-prices', marketPriceRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ name: 'AgroSync AI API', version: '1.0.0', status: 'running' });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
