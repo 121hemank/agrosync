@@ -270,7 +270,7 @@ router.get('/', async (req, res) => {
 
     await seedTodayPrices();
 
-    const { prices } = await getTodayPrices();
+    const { prices, source } = await getTodayPrices();
     let results = prices;
 
     if (crop) {
@@ -284,7 +284,7 @@ router.get('/', async (req, res) => {
     if (state) results = results.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
     if (date) results = results.filter(p => p.price_date === date);
 
-    res.json({ data: results, source: results[0]?.source || 'none' });
+    res.json({ data: results, source });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
