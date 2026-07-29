@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, TrendingDown, RefreshCw, Search, Filter, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, RefreshCw, Search, BarChart3, Database, Cloud } from 'lucide-react';
 import { marketPrices } from '../../services/api';
 
 export default function MarketPrices() {
@@ -8,25 +8,33 @@ export default function MarketPrices() {
   const [selectedCrop, setSelectedCrop] = useState('');
   const [showChart, setShowChart] = useState(false);
 
-  const { data: prices, isLoading: pricesLoading, refetch, isFetching } = useQuery({
+  const { data: resp, isLoading: pricesLoading, refetch, isFetching, isError: pricesError } = useQuery({
     queryKey: ['market-prices', searchCrop],
-    queryFn: () => marketPrices.getAll({ crop: searchCrop || undefined }).then(r => r.data)
+    queryFn: () => marketPrices.getAll({ crop: searchCrop || undefined }).then(r => r.data),
+    retry: 1
   });
+
+  const prices = resp?.data || [];
+  const dataSource = resp?.source || 'auto-generated';
+  const isRealData = dataSource === 'data.gov.in';
 
   const { data: cropList } = useQuery({
     queryKey: ['market-crops'],
-    queryFn: () => marketPrices.getCrops().then(r => r.data)
+    queryFn: () => marketPrices.getCrops().then(r => r.data),
+    retry: 2
   });
 
   const { data: summary } = useQuery({
     queryKey: ['price-summary'],
-    queryFn: () => marketPrices.getSummary().then(r => r.data)
+    queryFn: () => marketPrices.getSummary().then(r => r.data),
+    retry: 2
   });
 
   const { data: priceHistory } = useQuery({
     queryKey: ['price-history', selectedCrop],
     queryFn: () => marketPrices.getHistory(selectedCrop).then(r => r.data),
-    enabled: !!selectedCrop
+    enabled: !!selectedCrop,
+    retry: 1
   });
 
   const uniqueCrops = [...new Set((prices || []).map((p: any) => p.crop_name))] as string[];
@@ -49,6 +57,15 @@ export default function MarketPrices() {
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh Prices
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-end mb-2">
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+          isRealData ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isRealData ? 'bg-green-500' : 'bg-amber-500'}`} />
+          {isRealData ? 'Real-time Government Data' : 'Estimated Prices'}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
@@ -175,6 +192,8 @@ export default function MarketPrices() {
             <tbody>
               {pricesLoading ? (
                 <tr><td colSpan={8} className="text-center py-8 text-gray-400">Loading prices...</td></tr>
+              ) : pricesError ? (
+                <tr><td colSpan={8} className="text-center py-8 text-red-500">Failed to load prices. Please try again.</td></tr>
               ) : (prices || []).length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-gray-400">No prices found</td></tr>
               ) : (

@@ -5,7 +5,9 @@ const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate);
 
-// Indian crops with typical price ranges (INR per quintal)
+const DATA_GOV_API = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a8f6c2e6f0a6';
+const API_KEY = process.env.DATA_GOV_API_KEY;
+
 const CROP_RANGES = {
   'Rice': { min: 1800, max: 2800, avg: 2200 },
   'Wheat': { min: 2000, max: 2600, avg: 2250 },
@@ -47,6 +49,169 @@ const INDIAN_MARKETS = [
   { name: 'Coimbatore', state: 'Tamil Nadu' }
 ];
 
+const CROP_ALIASES = {
+  'Rice': ['rice', 'paddy', 'dhan'],
+  'Wheat': ['wheat', 'gehu'],
+  'Maize': ['maize', 'corn', 'makka'],
+  'Cotton': ['cotton', 'kapas'],
+  'Sugarcane': ['sugarcane', 'ganna'],
+  'Soybean': ['soybean', 'soya'],
+  'Groundnut': ['groundnut', 'moongfali', 'peanut'],
+  'Potato': ['potato', 'aloo'],
+  'Onion': ['onion', 'pyaaz'],
+  'Tomato': ['tomato', 'tamatar'],
+  'Chilli': ['chilli', 'mirch'],
+  'Turmeric': ['turmeric', 'haldi'],
+  'Banana': ['banana', 'kela'],
+  'Mango': ['mango', 'aam'],
+  'Apple': ['apple', 'seb'],
+  'Tea': ['tea', 'chai', 'chaha'],
+  'Coffee': ['coffee'],
+  'Blackgram': ['blackgram', 'urad', 'urd'],
+  'Mungbean': ['mungbean', 'moong', 'green gram'],
+  'Chickpea': ['chickpea', 'chana', 'bengal gram']
+};
+
+function parseDate(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return dateStr;
+}
+
+function matchCrop(commodity) {
+  if (!commodity) return null;
+  const lower = commodity.toLowerCase().trim();
+  for (const [ourCrop, aliases] of Object.entries(CROP_ALIASES)) {
+    if (aliases.some(a => lower.includes(a))) return ourCrop;
+  }
+  return null;
+}
+
+async function fetchFromDataGov() {
+  if (!API_KEY) return null;
+
+  const today = new Date().toISOString().split('T')[0];
+  const allRecords = [];
+  let offset = 0;
+  const limit = 1000;
+  let total = null;
+
+  while (total === null || offset < total) {
+    const url = `${DATA_GOV_API}?api-key=${API_KEY}&format=json&limit=${limit}&offset=${offset}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 403) return null;
+      throw new Error(`data.gov.in API error: ${response.status}`);
+    }
+    const data = await response.json();
+    if (!data.records || data.records.length === 0) break;
+
+    allRecords.push(...data.records);
+    total = data.total || allRecords.length;
+    offset += limit;
+    if (total && offset >= total) break;
+  }
+
+  const mapped = [];
+  const seen = new Set();
+
+  for (const r of allRecords) {
+    const cropName = matchCrop(r.commodity);
+    if (!cropName) continue;
+
+    const priceDate = parseDate(r.arrival_date);
+    const key = `${cropName}|${r.market}|${priceDate}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const modal = parseFloat(r.modal_price) || 0;
+    const minP = parseFloat(r.min_price) || 0;
+    const maxP = parseFloat(r.max_price) || 0;
+
+    mapped.push({
+      crop_name: cropName,
+      market_name: (r.market || '').trim(),
+      state: (r.state || '').trim(),
+      price_per_quintal: modal || ((minP + maxP) / 2),
+      min_price: minP,
+      max_price: maxP,
+      modal_price: modal,
+      price_date: priceDate,
+      source: 'data.gov.in'
+    });
+  }
+
+  return mapped;
+}
+
+let lastFetchDate = null;
+let cachedApiPrices = null;
+
+async function getOrFetchPrices() {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: existing } = await supabase
+    .from('market_prices')
+    .select('*')
+    .eq('price_date', today)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  const hasTodayData = existing && existing.length > 0;
+
+  if (API_KEY && lastFetchDate !== today) {
+    try {
+      const apiPrices = await fetchFromDataGov();
+      if (apiPrices && apiPrices.length > 0) {
+        await supabase.from('market_prices').delete().eq('price_date', today).eq('source', 'data.gov.in');
+        const chunks = [];
+        for (let i = 0; i < apiPrices.length; i += 500) {
+          chunks.push(apiPrices.slice(i, i + 500));
+        }
+        for (const chunk of chunks) {
+          await supabase.from('market_prices').insert(chunk);
+        }
+        lastFetchDate = today;
+        cachedApiPrices = apiPrices;
+        return { prices: apiPrices, source: 'data.gov.in' };
+      }
+    } catch (err) {
+      console.error('Failed to fetch from data.gov.in:', err.message);
+    }
+  }
+
+  if (hasTodayData) {
+    const { data } = await supabase
+      .from('market_prices')
+      .select('*')
+      .eq('price_date', today)
+      .order('crop_name');
+    if (data && data.length > 0) {
+      return { prices: data, source: data[0].source || 'unknown' };
+    }
+  }
+
+  return { prices: [], source: 'none' };
+}
+
+async function ensureTodayPrices() {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: existing } = await supabase
+    .from('market_prices')
+    .select('id')
+    .eq('price_date', today)
+    .limit(1);
+
+  if (existing && existing.length > 0) return;
+
+  const generated = generateMarketPrices();
+  await supabase.from('market_prices').insert(generated);
+}
+
 function generateMarketPrices() {
   const prices = [];
   const today = new Date().toISOString().split('T')[0];
@@ -77,30 +242,29 @@ function generateMarketPrices() {
   return prices;
 }
 
-// Get market prices
+// GET / - list market prices
 router.get('/', async (req, res) => {
   try {
     const { crop, market, state, date } = req.query;
-    let query = supabase
-      .from('market_prices')
-      .select('*')
-      .order('price_date', { ascending: false });
+    const today = new Date().toISOString().split('T')[0];
+    const targetDate = date || today;
 
-    if (crop) query = query.ilike('crop_name', `%${crop}%`);
-    if (market) query = query.ilike('market_name', `%${market}%`);
-    if (state) query = query.ilike('state', `%${state}%`);
-    if (date) query = query.eq('price_date', date);
+    const { prices, source } = await getOrFetchPrices();
 
-    const { data, error } = await query.limit(100);
-    if (error) throw error;
+    let results = prices;
 
-    if (!data || data.length === 0) {
+    if (results.length === 0) {
       const generated = generateMarketPrices();
       const { data: inserted } = await supabase.from('market_prices').insert(generated).select();
-      return res.json(inserted || []);
+      results = inserted || [];
     }
 
-    res.json(data);
+    if (crop) results = results.filter(p => p.crop_name.toLowerCase().includes(crop.toLowerCase()));
+    if (market) results = results.filter(p => p.market_name.toLowerCase().includes(market.toLowerCase()));
+    if (state) results = results.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
+    if (date) results = results.filter(p => p.price_date === date);
+
+    res.json({ data: results, source: results[0]?.source || 'auto-generated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -109,6 +273,8 @@ router.get('/', async (req, res) => {
 // Get unique crops with prices
 router.get('/crops', async (req, res) => {
   try {
+    await ensureTodayPrices();
+
     const { data, error } = await supabase
       .from('market_prices')
       .select('crop_name')
@@ -142,11 +308,13 @@ router.get('/history/:cropName', async (req, res) => {
 // Get market summary (average prices by crop)
 router.get('/summary', async (req, res) => {
   try {
+    await ensureTodayPrices();
+
     const { data, error } = await supabase
       .from('market_prices')
-      .select('crop_name, price_per_quintal')
+      .select('crop_name, price_per_quintal, min_price, max_price, market_name, price_date')
       .order('price_date', { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (error) throw error;
 
@@ -170,7 +338,7 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// Refresh prices (regenerate with slight variations)
+// Refresh prices (fetch from API if configured, otherwise generate)
 router.post('/refresh', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -178,14 +346,33 @@ router.post('/refresh', async (req, res) => {
     await supabase
       .from('market_prices')
       .delete()
-      .eq('price_date', today)
-      .eq('source', 'auto-generated');
+      .eq('price_date', today);
+
+    if (API_KEY) {
+      try {
+        const apiPrices = await fetchFromDataGov();
+        if (apiPrices && apiPrices.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < apiPrices.length; i += 500) {
+            chunks.push(apiPrices.slice(i, i + 500));
+          }
+          for (const chunk of chunks) {
+            await supabase.from('market_prices').insert(chunk);
+          }
+          lastFetchDate = today;
+          cachedApiPrices = apiPrices;
+          return res.json({ message: 'Prices refreshed from data.gov.in', count: apiPrices.length, prices: apiPrices, source: 'data.gov.in' });
+        }
+      } catch (err) {
+        console.error('API refresh failed:', err.message);
+      }
+    }
 
     const generated = generateMarketPrices();
     const { data, error } = await supabase.from('market_prices').insert(generated).select();
     if (error) throw error;
 
-    res.json({ message: 'Prices refreshed', count: data.length, prices: data });
+    res.json({ message: 'Prices refreshed (estimated)', count: data.length, prices: data, source: 'auto-generated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
