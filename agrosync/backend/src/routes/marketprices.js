@@ -93,17 +93,22 @@ function matchCrop(commodity) {
 async function fetchFromDataGov() {
   if (!API_KEY) return null;
 
-  const today = new Date().toISOString().split('T')[0];
   const allRecords = [];
   let offset = 0;
   const limit = 1000;
   let total = null;
+  let pagesFetched = 0;
+  const MAX_PAGES = 2;
 
-  while (total === null || offset < total) {
+  while ((total === null || offset < total) && pagesFetched < MAX_PAGES) {
     const url = `${DATA_GOV_API}?api-key=${API_KEY}&format=json&limit=${limit}&offset=${offset}`;
     const response = await fetch(url);
     if (!response.ok) {
       if (response.status === 403) return null;
+      if (response.status === 429) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
       throw new Error(`data.gov.in API error: ${response.status}`);
     }
     const data = await response.json();
@@ -112,6 +117,7 @@ async function fetchFromDataGov() {
     allRecords.push(...data.records);
     total = data.total || allRecords.length;
     offset += limit;
+    pagesFetched++;
     if (total && offset >= total) break;
   }
 
@@ -148,45 +154,56 @@ async function fetchFromDataGov() {
 }
 
 let lastSeedDate = null;
+let seedingPromise = null;
 
 async function seedTodayPrices() {
   const today = new Date().toISOString().split('T')[0];
 
   if (lastSeedDate === today) return;
 
-  const { data: existing } = await supabase
-    .from('market_prices')
-    .select('id')
-    .eq('price_date', today)
-    .limit(1);
+  if (seedingPromise) return seedingPromise;
 
-  if (existing && existing.length > 0) {
-    lastSeedDate = today;
-    return;
-  }
-
-  if (API_KEY) {
+  seedingPromise = (async () => {
     try {
-      const apiPrices = await fetchFromDataGov();
-      if (apiPrices && apiPrices.length > 0) {
-        const chunks = [];
-        for (let i = 0; i < apiPrices.length; i += 500) {
-          chunks.push(apiPrices.slice(i, i + 500));
-        }
-        for (const chunk of chunks) {
-          await supabase.from('market_prices').insert(chunk);
-        }
+      const { data: existing } = await supabase
+        .from('market_prices')
+        .select('id')
+        .eq('price_date', today)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
         lastSeedDate = today;
         return;
       }
-    } catch (err) {
-      console.error('Failed to fetch from data.gov.in:', err.message);
-    }
-  }
 
-  const generated = generateMarketPrices();
-  await supabase.from('market_prices').insert(generated);
-  lastSeedDate = today;
+      if (API_KEY) {
+        try {
+          const apiPrices = await fetchFromDataGov();
+          if (apiPrices && apiPrices.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < apiPrices.length; i += 500) {
+              chunks.push(apiPrices.slice(i, i + 500));
+            }
+            for (const chunk of chunks) {
+              await supabase.from('market_prices').insert(chunk);
+            }
+            lastSeedDate = today;
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to fetch from data.gov.in:', err.message);
+        }
+      }
+
+      const generated = generateMarketPrices();
+      await supabase.from('market_prices').insert(generated);
+      lastSeedDate = today;
+    } finally {
+      seedingPromise = null;
+    }
+  })();
+
+  return seedingPromise;
 }
 
 async function getTodayPrices() {
