@@ -113,9 +113,10 @@ async function fetchFromDataGov() {
       const seen = new Set();
 
       for (const r of data.records) {
-        const cropName = matchCrop(r.commodity);
-        if (!cropName) continue;
+        const commodity = (r.commodity || '').trim();
+        if (!commodity) continue;
 
+        const cropName = matchCrop(r.commodity) || commodity;
         const priceDate = parseDate(r.arrival_date);
         const key = `${cropName}|${r.market}|${priceDate}`;
         if (seen.has(key)) continue;
@@ -127,7 +128,9 @@ async function fetchFromDataGov() {
 
         mapped.push({
           crop_name: cropName,
+          commodity,
           market_name: (r.market || '').trim(),
+          district: (r.district || '').trim(),
           state: (r.state || '').trim(),
           price_per_quintal: modal || ((minP + maxP) / 2),
           min_price: minP,
@@ -257,7 +260,13 @@ router.get('/', async (req, res) => {
     const { prices } = await getTodayPrices();
     let results = prices;
 
-    if (crop) results = results.filter(p => p.crop_name.toLowerCase().includes(crop.toLowerCase()));
+    if (crop) {
+      const q = crop.toLowerCase();
+      results = results.filter(p =>
+        (p.crop_name || '').toLowerCase().includes(q) ||
+        (p.commodity || '').toLowerCase().includes(q)
+      );
+    }
     if (market) results = results.filter(p => p.market_name.toLowerCase().includes(market.toLowerCase()));
     if (state) results = results.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
     if (date) results = results.filter(p => p.price_date === date);

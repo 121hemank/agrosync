@@ -243,7 +243,9 @@ CREATE TABLE farm_expenses (
 CREATE TABLE market_prices (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   crop_name VARCHAR(255) NOT NULL,
+  commodity VARCHAR(255),
   market_name VARCHAR(255) NOT NULL,
+  district VARCHAR(255),
   state VARCHAR(100),
   price_per_quintal DECIMAL(10, 2) NOT NULL,
   min_price DECIMAL(10, 2),
