@@ -93,64 +93,59 @@ function matchCrop(commodity) {
 async function fetchFromDataGov() {
   if (!API_KEY) return null;
 
-  const allRecords = [];
-  let offset = 0;
-  const limit = 1000;
-  let total = null;
-  let pagesFetched = 0;
-  const MAX_PAGES = 2;
+  const url = `${DATA_GOV_API}?api-key=${API_KEY}&format=json&limit=1000&offset=0`;
 
-  while ((total === null || offset < total) && pagesFetched < MAX_PAGES) {
-    const url = `${DATA_GOV_API}?api-key=${API_KEY}&format=json&limit=${limit}&offset=${offset}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      if (response.status === 403) return null;
-      if (response.status === 429) {
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        if (response.status === 403) return null;
+        if (response.status === 429) {
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw new Error(`data.gov.in API error: ${response.status}`);
       }
-      throw new Error(`data.gov.in API error: ${response.status}`);
+      const data = await response.json();
+      if (!data.records || data.records.length === 0) return [];
+
+      const mapped = [];
+      const seen = new Set();
+
+      for (const r of data.records) {
+        const cropName = matchCrop(r.commodity);
+        if (!cropName) continue;
+
+        const priceDate = parseDate(r.arrival_date);
+        const key = `${cropName}|${r.market}|${priceDate}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const modal = parseFloat(r.modal_price) || 0;
+        const minP = parseFloat(r.min_price) || 0;
+        const maxP = parseFloat(r.max_price) || 0;
+
+        mapped.push({
+          crop_name: cropName,
+          market_name: (r.market || '').trim(),
+          state: (r.state || '').trim(),
+          price_per_quintal: modal || ((minP + maxP) / 2),
+          min_price: minP,
+          max_price: maxP,
+          modal_price: modal,
+          price_date: priceDate,
+          source: 'data.gov.in'
+        });
+      }
+
+      return mapped;
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await new Promise(r => setTimeout(r, 2000));
     }
-    const data = await response.json();
-    if (!data.records || data.records.length === 0) break;
-
-    allRecords.push(...data.records);
-    total = data.total || allRecords.length;
-    offset += limit;
-    pagesFetched++;
-    if (total && offset >= total) break;
   }
 
-  const mapped = [];
-  const seen = new Set();
-
-  for (const r of allRecords) {
-    const cropName = matchCrop(r.commodity);
-    if (!cropName) continue;
-
-    const priceDate = parseDate(r.arrival_date);
-    const key = `${cropName}|${r.market}|${priceDate}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const modal = parseFloat(r.modal_price) || 0;
-    const minP = parseFloat(r.min_price) || 0;
-    const maxP = parseFloat(r.max_price) || 0;
-
-    mapped.push({
-      crop_name: cropName,
-      market_name: (r.market || '').trim(),
-      state: (r.state || '').trim(),
-      price_per_quintal: modal || ((minP + maxP) / 2),
-      min_price: minP,
-      max_price: maxP,
-      modal_price: modal,
-      price_date: priceDate,
-      source: 'data.gov.in'
-    });
-  }
-
-  return mapped;
+  return [];
 }
 
 let lastSeedDate = null;
