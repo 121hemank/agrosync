@@ -30,7 +30,7 @@ export default function MarketPrices() {
     retry: 2
   });
 
-  const { data: priceHistory } = useQuery({
+  const { data: priceHistory, isLoading: historyLoading, isError: historyError } = useQuery({
     queryKey: ['price-history', selectedCrop],
     queryFn: () => marketPrices.getHistory(selectedCrop).then(r => r.data),
     enabled: !!selectedCrop,
@@ -155,10 +155,14 @@ export default function MarketPrices() {
                 </table>
               </div>
             </div>
+          ) : selectedCrop && historyLoading ? (
+            <div className="text-center py-8 text-gray-400">Loading price history...</div>
+          ) : selectedCrop && historyError ? (
+            <div className="text-center py-8 text-red-500">Failed to load price history</div>
+          ) : selectedCrop ? (
+            <div className="text-center py-8 text-gray-400">No price history available for {selectedCrop}</div>
           ) : (
-            <div className="text-center py-8 text-gray-400">
-              {selectedCrop ? 'Loading price history...' : 'Select a crop to view price trends'}
-            </div>
+            <div className="text-center py-8 text-gray-400">Select a crop to view price trends</div>
           )}
         </div>
       )}
