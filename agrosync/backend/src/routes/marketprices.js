@@ -147,58 +147,12 @@ async function fetchFromDataGov() {
   return mapped;
 }
 
-let lastFetchDate = null;
-let cachedApiPrices = null;
+let lastSeedDate = null;
 
-async function getOrFetchPrices() {
+async function seedTodayPrices() {
   const today = new Date().toISOString().split('T')[0];
 
-  const { data: existing } = await supabase
-    .from('market_prices')
-    .select('*')
-    .eq('price_date', today)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  const hasTodayData = existing && existing.length > 0;
-
-  if (API_KEY && lastFetchDate !== today) {
-    try {
-      const apiPrices = await fetchFromDataGov();
-      if (apiPrices && apiPrices.length > 0) {
-        await supabase.from('market_prices').delete().eq('price_date', today).eq('source', 'data.gov.in');
-        const chunks = [];
-        for (let i = 0; i < apiPrices.length; i += 500) {
-          chunks.push(apiPrices.slice(i, i + 500));
-        }
-        for (const chunk of chunks) {
-          await supabase.from('market_prices').insert(chunk);
-        }
-        lastFetchDate = today;
-        cachedApiPrices = apiPrices;
-        return { prices: apiPrices, source: 'data.gov.in' };
-      }
-    } catch (err) {
-      console.error('Failed to fetch from data.gov.in:', err.message);
-    }
-  }
-
-  if (hasTodayData) {
-    const { data } = await supabase
-      .from('market_prices')
-      .select('*')
-      .eq('price_date', today)
-      .order('crop_name');
-    if (data && data.length > 0) {
-      return { prices: data, source: data[0].source || 'unknown' };
-    }
-  }
-
-  return { prices: [], source: 'none' };
-}
-
-async function ensureTodayPrices() {
-  const today = new Date().toISOString().split('T')[0];
+  if (lastSeedDate === today) return;
 
   const { data: existing } = await supabase
     .from('market_prices')
@@ -206,10 +160,49 @@ async function ensureTodayPrices() {
     .eq('price_date', today)
     .limit(1);
 
-  if (existing && existing.length > 0) return;
+  if (existing && existing.length > 0) {
+    lastSeedDate = today;
+    return;
+  }
+
+  if (API_KEY) {
+    try {
+      const apiPrices = await fetchFromDataGov();
+      if (apiPrices && apiPrices.length > 0) {
+        const chunks = [];
+        for (let i = 0; i < apiPrices.length; i += 500) {
+          chunks.push(apiPrices.slice(i, i + 500));
+        }
+        for (const chunk of chunks) {
+          await supabase.from('market_prices').insert(chunk);
+        }
+        lastSeedDate = today;
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to fetch from data.gov.in:', err.message);
+    }
+  }
 
   const generated = generateMarketPrices();
   await supabase.from('market_prices').insert(generated);
+  lastSeedDate = today;
+}
+
+async function getTodayPrices() {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data } = await supabase
+    .from('market_prices')
+    .select('*')
+    .eq('price_date', today)
+    .order('crop_name');
+
+  if (data && data.length > 0) {
+    return { prices: data, source: data[0].source || 'unknown' };
+  }
+
+  return { prices: [], source: 'none' };
 }
 
 function generateMarketPrices() {
@@ -246,25 +239,18 @@ function generateMarketPrices() {
 router.get('/', async (req, res) => {
   try {
     const { crop, market, state, date } = req.query;
-    const today = new Date().toISOString().split('T')[0];
-    const targetDate = date || today;
 
-    const { prices, source } = await getOrFetchPrices();
+    await seedTodayPrices();
 
+    const { prices } = await getTodayPrices();
     let results = prices;
-
-    if (results.length === 0) {
-      const generated = generateMarketPrices();
-      const { data: inserted } = await supabase.from('market_prices').insert(generated).select();
-      results = inserted || [];
-    }
 
     if (crop) results = results.filter(p => p.crop_name.toLowerCase().includes(crop.toLowerCase()));
     if (market) results = results.filter(p => p.market_name.toLowerCase().includes(market.toLowerCase()));
     if (state) results = results.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
     if (date) results = results.filter(p => p.price_date === date);
 
-    res.json({ data: results, source: results[0]?.source || 'auto-generated' });
+    res.json({ data: results, source: results[0]?.source || 'none' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -273,7 +259,7 @@ router.get('/', async (req, res) => {
 // Get unique crops with prices
 router.get('/crops', async (req, res) => {
   try {
-    await ensureTodayPrices();
+    await seedTodayPrices();
 
     const { data, error } = await supabase
       .from('market_prices')
@@ -308,7 +294,7 @@ router.get('/history/:cropName', async (req, res) => {
 // Get market summary (average prices by crop)
 router.get('/summary', async (req, res) => {
   try {
-    await ensureTodayPrices();
+    await seedTodayPrices();
 
     const { data, error } = await supabase
       .from('market_prices')
@@ -348,31 +334,13 @@ router.post('/refresh', async (req, res) => {
       .delete()
       .eq('price_date', today);
 
-    if (API_KEY) {
-      try {
-        const apiPrices = await fetchFromDataGov();
-        if (apiPrices && apiPrices.length > 0) {
-          const chunks = [];
-          for (let i = 0; i < apiPrices.length; i += 500) {
-            chunks.push(apiPrices.slice(i, i + 500));
-          }
-          for (const chunk of chunks) {
-            await supabase.from('market_prices').insert(chunk);
-          }
-          lastFetchDate = today;
-          cachedApiPrices = apiPrices;
-          return res.json({ message: 'Prices refreshed from data.gov.in', count: apiPrices.length, prices: apiPrices, source: 'data.gov.in' });
-        }
-      } catch (err) {
-        console.error('API refresh failed:', err.message);
-      }
-    }
+    lastSeedDate = null;
+    await seedTodayPrices();
 
-    const generated = generateMarketPrices();
-    const { data, error } = await supabase.from('market_prices').insert(generated).select();
-    if (error) throw error;
+    const { prices } = await getTodayPrices();
+    const source = prices[0]?.source || 'auto-generated';
 
-    res.json({ message: 'Prices refreshed (estimated)', count: data.length, prices: data, source: 'auto-generated' });
+    res.json({ message: `Prices refreshed from ${source}`, count: prices.length, prices, source });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
