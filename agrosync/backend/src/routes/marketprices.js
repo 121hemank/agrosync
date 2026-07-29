@@ -5,7 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate);
 
-const DATA_GOV_API = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a8f6c2e6f0a6';
+const DATA_GOV_API = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
 const API_KEY = process.env.DATA_GOV_API_KEY;
 
 const CROP_RANGES = {
