@@ -152,6 +152,7 @@ async function fetchFromDataGov() {
 }
 
 let lastSeedDate = null;
+let lastApiAttempt = null;
 let seedingPromise = null;
 
 async function seedTodayPrices() {
@@ -165,37 +166,49 @@ async function seedTodayPrices() {
     try {
       const { data: existing } = await supabase
         .from('market_prices')
-        .select('id')
+        .select('source')
         .eq('price_date', today)
         .limit(1);
 
-      if (existing && existing.length > 0) {
+      const hasRealData = existing && existing.length > 0 && existing[0].source === 'data.gov.in';
+
+      if (hasRealData) {
         lastSeedDate = today;
         return;
       }
 
+      const hasGeneratedData = existing && existing.length > 0 && existing[0].source === 'auto-generated';
+
       if (API_KEY) {
-        try {
-          const apiPrices = await fetchFromDataGov();
-          if (apiPrices && apiPrices.length > 0) {
-            const chunks = [];
-            for (let i = 0; i < apiPrices.length; i += 500) {
-              chunks.push(apiPrices.slice(i, i + 500));
+        const cooldown = lastApiAttempt ? Date.now() - lastApiAttempt < 30000 : false;
+        if (!cooldown) {
+          try {
+            lastApiAttempt = Date.now();
+            const apiPrices = await fetchFromDataGov();
+            if (apiPrices && apiPrices.length > 0) {
+              if (hasGeneratedData) {
+                await supabase.from('market_prices').delete().eq('price_date', today);
+              }
+              const chunks = [];
+              for (let i = 0; i < apiPrices.length; i += 500) {
+                chunks.push(apiPrices.slice(i, i + 500));
+              }
+              for (const chunk of chunks) {
+                await supabase.from('market_prices').insert(chunk);
+              }
+              lastSeedDate = today;
+              return;
             }
-            for (const chunk of chunks) {
-              await supabase.from('market_prices').insert(chunk);
-            }
-            lastSeedDate = today;
-            return;
+          } catch (err) {
+            console.error('Failed to fetch from data.gov.in:', err.message);
           }
-        } catch (err) {
-          console.error('Failed to fetch from data.gov.in:', err.message);
         }
       }
 
-      const generated = generateMarketPrices();
-      await supabase.from('market_prices').insert(generated);
-      lastSeedDate = today;
+      if (!hasGeneratedData) {
+        const generated = generateMarketPrices();
+        await supabase.from('market_prices').insert(generated);
+      }
     } finally {
       seedingPromise = null;
     }
