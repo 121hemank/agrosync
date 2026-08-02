@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { FileText, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { reportsAPI } from '../services/api';
+import { reportsAPI, analytics } from '../services/api';
 
-const sampleData = [
-  { crop: 'Wheat', yield: 120, revenue: 24000 },
-  { crop: 'Rice', yield: 200, revenue: 40000 },
-  { crop: 'Corn', yield: 150, revenue: 30000 }
-];
+const buildReportData = async () => {
+  const { data: crops } = await analytics.crops();
+  return (crops || []).map((c: any) => ({
+    Crop: c.crop_name || 'Unknown',
+    Planted: c.planted || 0,
+    Harvested: c.harvested || 0,
+    Failed: c.failed || 0
+  }));
+};
 
 export default function Reports() {
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -30,9 +34,16 @@ export default function Reports() {
   const handlePDF = async () => {
     setPdfLoading(true);
     try {
-      const res = await reportsAPI.pdf({ type: 'Analytics', data: sampleData });
-      downloadBlob(res.data, 'report.pdf');
-    } catch { } finally {
+      const data = await buildReportData();
+      if (data.length === 0) {
+        alert('No crop data available to generate a report yet.');
+        return;
+      }
+      const res = await reportsAPI.pdf({ type: 'Crop Analytics', data });
+      downloadBlob(res.data, 'agrosync-crop-report.pdf');
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Failed to generate PDF report');
+    } finally {
       setPdfLoading(false);
     }
   };
@@ -40,9 +51,16 @@ export default function Reports() {
   const handleCSV = async () => {
     setCsvLoading(true);
     try {
-      const res = await reportsAPI.csv({ data: sampleData });
-      downloadBlob(res.data, 'report.csv');
-    } catch { } finally {
+      const data = await buildReportData();
+      if (data.length === 0) {
+        alert('No crop data available to export yet.');
+        return;
+      }
+      const res = await reportsAPI.csv({ data });
+      downloadBlob(res.data, 'agrosync-crop-data.csv');
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Failed to generate CSV');
+    } finally {
       setCsvLoading(false);
     }
   };
