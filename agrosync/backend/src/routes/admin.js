@@ -120,7 +120,9 @@ router.get('/analytics', async (req, res) => {
       monthlyRevenue[month] = (monthlyRevenue[month] || 0) + Number(o.total || 0);
     });
 
-    res.json({ totalRevenue, monthlyRevenue, totalOrders: completedOrders?.length || 0 });
+    const monthlyRevenueList = Object.entries(monthlyRevenue).map(([month, amount]) => ({ month, amount }));
+
+    res.json({ totalRevenue, monthlyRevenue: monthlyRevenueList, totalOrders: completedOrders?.length || 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -136,7 +136,16 @@ router.get('/crops', async (req, res) => {
       .in('farm_id', farmIds)
       .order('created_at', { ascending: false });
 
-    res.json(data || []);
+    const byCrop = {};
+    (data || []).forEach(c => {
+      const name = c.crops?.crop_name || 'Unknown';
+      if (!byCrop[name]) byCrop[name] = { planted: 0, harvested: 0, failed: 0 };
+      byCrop[name].planted += 1;
+      if (c.status === 'harvested') byCrop[name].harvested += 1;
+      else if (c.status === 'failed') byCrop[name].failed += 1;
+    });
+
+    res.json(Object.entries(byCrop).map(([name, v]) => ({ crop_name: name, ...v })));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -147,12 +156,37 @@ router.get('/market-trends', async (req, res) => {
   try {
     const { data } = await supabase
       .from('marketplace_products')
-      .select('crop_id, crops(crop_name), price, created_at')
+      .select('id, crop_id, crops(crop_name), price, created_at')
       .eq('status', 'available')
       .order('created_at', { ascending: false })
       .limit(100);
 
-    res.json(data || []);
+    const productIds = data?.map(p => p.id) || [];
+    const { data: orderItems } = productIds.length
+      ? await supabase.from('order_items').select('product_id').in('product_id', productIds)
+      : { data: [] };
+
+    const orderCount = {};
+    (orderItems || []).forEach(oi => {
+      orderCount[oi.product_id] = (orderCount[oi.product_id] || 0) + 1;
+    });
+
+    const byCrop = {};
+    (data || []).forEach(p => {
+      const name = p.crops?.crop_name || 'Unknown';
+      if (!byCrop[name]) byCrop[name] = { total: 0, count: 0, orders: 0 };
+      byCrop[name].total += Number(p.price || 0);
+      byCrop[name].count += 1;
+      byCrop[name].orders += orderCount[p.id] || 0;
+    });
+
+    const result = Object.entries(byCrop).map(([name, v]) => ({
+      name,
+      avg_price: Math.round((v.total / v.count) * 100) / 100,
+      demand: v.orders === 0 ? 'Low' : v.orders < 5 ? 'Medium' : 'High'
+    }));
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
