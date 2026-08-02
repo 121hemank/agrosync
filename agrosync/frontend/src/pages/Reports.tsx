@@ -87,7 +87,7 @@ export default function Reports() {
                     <FileText className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{report.name || report.type || 'Report'}</p>
+                    <p className="font-medium text-sm">{report.report_name || report.name || report.type || 'Report'}</p>
                     <p className="text-xs text-gray-400">{report.created_at ? new Date(report.created_at).toLocaleDateString() : ''}</p>
                   </div>
                 </div>

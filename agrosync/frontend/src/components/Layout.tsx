@@ -38,7 +38,7 @@ const adminLinks = [
   { to: '/admin/products', icon: ShoppingBag, label: 'Products' },
   { to: '/admin/orders', icon: Package, label: 'Orders' },
   { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/admin/reports', icon: FileText, label: 'Reports' }
+  { to: '/reports', icon: FileText, label: 'Reports' }
 ];
 
 export default function Layout() {
