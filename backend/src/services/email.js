@@ -12,7 +12,10 @@ if (process.env.SMTP_HOST) {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
-    }
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
   });
 }
 
@@ -39,6 +42,13 @@ async function sendViaResend(to, subject, html) {
   await resend.emails.send({ from, to, subject, html });
 }
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Email send timed out after ${ms}ms`)), ms))
+  ]);
+}
+
 async function sendOTP(email, otp) {
   const subject = 'Your OTP for AgroSync AI Registration';
   const html = buildHtml(subject, `
@@ -49,7 +59,7 @@ async function sendOTP(email, otp) {
 
   if (transporter) {
     try {
-      await sendViaNodemailer(email, subject, html);
+      await withTimeout(sendViaNodemailer(email, subject, html), 12000);
       return;
     } catch (err) {
       console.error('Nodemailer failed, trying Resend:', err.message);
@@ -58,7 +68,7 @@ async function sendOTP(email, otp) {
 
   if (resend) {
     try {
-      await sendViaResend(email, subject, html);
+      await withTimeout(sendViaResend(email, subject, html), 12000);
       return;
     } catch (err) {
       console.error('Resend also failed:', err.message);
