@@ -1,8 +1,17 @@
 const nodemailer = require('nodemailer');
+const https = require('https');
 const { Resend } = require('resend');
 
 let transporter = null;
 let resend = null;
+let sendgridKey = null;
+
+// Prefer the SendGrid Web API (HTTPS) when a key is available. SendGrid SMTP
+// and Gmail SMTP are blocked on cloud free tiers (Render blocks SMTP ports
+// 25/465/587), whereas the Web API runs over HTTPS (443) and is never blocked.
+if (process.env.SENDGRID_API_KEY || (process.env.SMTP_HOST === 'smtp.sendgrid.net' && process.env.SMTP_PASS)) {
+  sendgridKey = process.env.SENDGRID_API_KEY || process.env.SMTP_PASS;
+}
 
 if (process.env.SMTP_HOST) {
   transporter = nodemailer.createTransport({
@@ -28,6 +37,53 @@ function buildHtml(title, body) {
     <h2 style="color:#2E7D32">AgroSync AI</h2>
     ${body}
   </div>`;
+}
+
+function sendViaSendgrid(to, subject, html) {
+  const fromRaw = process.env.EMAIL_FROM || `AgroSync AI <${process.env.SMTP_USER}>`;
+  const fromMatch = fromRaw.match(/^(.*)<([^>]+)>$/);
+  const from = fromMatch
+    ? { name: fromMatch[1].trim(), email: fromMatch[2].trim() }
+    : { email: fromRaw.trim() };
+
+  const payload = JSON.stringify({
+    personalizations: [{ to: [{ email: to }] }],
+    from,
+    subject,
+    content: [{ type: 'text/html', value: html }]
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.sendgrid.com',
+        path: '/v3/mail/send',
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sendgridKey}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        }
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ statusCode: res.statusCode, body });
+          } else {
+            reject(new Error(`SendGrid API ${res.statusCode}: ${body}`));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(10000, () => {
+      req.destroy(new Error('SendGrid API timed out'));
+    });
+    req.write(payload);
+    req.end();
+  });
 }
 
 async function sendViaNodemailer(to, subject, html) {
@@ -57,6 +113,15 @@ async function sendOTP(email, otp) {
     <p>This OTP expires in 10 minutes.</p>
   `);
 
+  if (sendgridKey) {
+    try {
+      await withTimeout(sendViaSendgrid(email, subject, html), 12000);
+      return;
+    } catch (err) {
+      console.error('SendGrid API failed, trying next provider:', err.message);
+    }
+  }
+
   if (transporter) {
     try {
       await withTimeout(sendViaNodemailer(email, subject, html), 12000);
@@ -75,11 +140,20 @@ async function sendOTP(email, otp) {
     }
   }
 
-  throw new Error('No email service available. Configure SMTP_HOST/SMTP_USER or RESEND_API_KEY.');
+  throw new Error('No email service available. Configure SENDGRID_API_KEY / SMTP_HOST or RESEND_API_KEY.');
 }
 
 async function sendNotification(email, title, message) {
   const html = buildHtml(title, `<p>${message}</p>`);
+
+  if (sendgridKey) {
+    try {
+      await withTimeout(sendViaSendgrid(email, title, html), 12000);
+      return;
+    } catch (err) {
+      console.error('SendGrid API failed, trying next provider:', err.message);
+    }
+  }
 
   if (transporter) {
     try {
