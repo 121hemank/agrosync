@@ -18,6 +18,21 @@ Node.js + Express REST API with Supabase (PostgreSQL), JWT authentication, Socke
 
    Fill in your Supabase credentials, JWT secrets, and email provider keys.
 
+   **Email (OTP/notifications):** SendGrid is the recommended provider because it works from
+   cloud hosts (Render, etc.) without blocking server IPs. Configure:
+
+   ```env
+   SMTP_HOST=smtp.sendgrid.net
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=apikey
+   SMTP_PASS=SG.xxxxxxxxxxxx          # your SendGrid API key
+   EMAIL_FROM=AgroSync AI <you@verified-sender.com>
+   ```
+
+   > The sender email must be verified in SendGrid (Settings → Sender Authentication).
+   > Gmail SMTP is NOT supported from cloud/Render IPs (Google blocks them).
+
 3. Run the database scripts from `src/db/` in your Supabase SQL Editor:
    - `schema.sql`
    - `rls_policies.sql`

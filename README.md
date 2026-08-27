@@ -77,7 +77,7 @@ Three distinct user roles, each with a tailored dashboard:
 | **Socket.IO** | Real-time events |
 | **Multer** | File uploads |
 | **PDFKit / json2csv** | Report generation |
-| **Nodemailer / Resend** | Email (OTP, notifications) |
+| **Nodemailer + SendGrid** | Email (OTP, notifications) |
 
 ---
 
@@ -91,7 +91,7 @@ agrosync/
 │       ├── db/           # Schema, RLS policies, seeds, migrations
 │       ├── middleware/   # Auth, file upload
 │       ├── routes/       # API route handlers
-│       └── services/     # Email, etc.
+│       └── services/     # Email (SendGrid), etc.
 ├── frontend/             # React + TypeScript SPA
 │   └── src/
 │       ├── components/   # Shared components (Layout)
@@ -143,15 +143,14 @@ SUPABASE_SERVICE_KEY=your_supabase_service_role_key
 # CORS
 FRONTEND_URL=http://localhost:5173
 
-# Email (for OTP & notifications) — SMTP or Resend
-SMTP_HOST=
+# Email (for OTP & notifications) — SendGrid recommended
+SMTP_HOST=smtp.sendgrid.net
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=
-SMTP_PASS=
-# OR
-RESEND_API_KEY=
-RESEND_FROM=AgroSync <onboarding@resend.dev>
+SMTP_USER=apikey
+SMTP_PASS=your_sendgrid_api_key   # starts with SG.
+EMAIL_FROM=AgroSync AI <your_verified_sender@example.com>
+# Alternatives: RESEND_API_KEY / RESEND_FROM, or Gmail SMTP (blocked from cloud IPs)
 ```
 
 See [backend/.env.example](backend/.env.example) for the full annotated template.
